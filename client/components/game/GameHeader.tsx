@@ -84,7 +84,9 @@ export function GameHeader({
               // 깜빡임 애니메이션이 상속돼 숫자까지 함께 명멸한다.
               <span className="ml-2 inline-flex items-baseline gap-1 rounded-full border border-amber-300/70 bg-amber-900 px-2 py-px text-xs font-bold text-amber-100 opacity-50 align-middle">
                 <span className="tabular-nums">{festivalInfo.turnsToNextStage}턴 후</span>
-                <span className="tabular-nums">{festivalInfo.nextCount}회</span>
+                <span className="tabular-nums">
+                  +{festivalInfo.count} → +{festivalInfo.nextCount}
+                </span>
               </span>
             )}
           </span>

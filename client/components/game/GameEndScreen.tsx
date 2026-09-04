@@ -113,35 +113,46 @@ export function GameEndScreen({
 
       {/* 체력표 */}
       <div
-        className="bg-white rounded-2xl shadow-lg border border-jungle-200 p-6 w-full max-w-md"
+        className="bg-white rounded-2xl shadow-lg border border-jungle-200 p-7 w-full max-w-2xl"
         style={{ animation: 'bounceIn 0.7s cubic-bezier(0.36,0.07,0.19,0.97) 200ms both' }}
       >
-        <div className="flex justify-between text-lg font-bold mb-1">
-          <span
-            className={`text-team-a ${winner === 'A' ? 'underline decoration-2' : 'opacity-60'}`}
-          >
-            🟢 {gameState.teamNames.A}: 체력 {hpA}
-          </span>
-          <span
-            className={`text-team-b ${winner === 'B' ? 'underline decoration-2' : 'opacity-60'}`}
-          >
-            🔵 {gameState.teamNames.B}: 체력 {hpB}
-          </span>
+        {/* 팀 이름과 체력을 한 줄에 붙여 쓰면 이름이 조금만 길어도 줄바꿈되므로,
+            좌우 두 칸으로 나눈 뒤 이름 아래에 체력을 따로 크게 적는다. */}
+        <div className="grid grid-cols-2 gap-6 mb-1">
+          {(['A', 'B'] as const).map(t => (
+            <div
+              key={t}
+              className={`text-center ${t === 'A' ? 'text-team-a' : 'text-team-b'} ${
+                winner === t ? '' : 'opacity-60'
+              }`}
+            >
+              <p
+                className={`text-lg font-bold truncate ${
+                  winner === t ? 'underline decoration-2 underline-offset-4' : ''
+                }`}
+              >
+                {t === 'A' ? '🟢' : '🔵'} {gameState.teamNames[t]}
+              </p>
+              <p className="text-sm font-semibold">
+                체력 <span className="text-2xl font-bold tabular-nums">{t === 'A' ? hpA : hpB}</span>
+              </p>
+            </div>
+          ))}
         </div>
-        <p className="text-center text-xs text-jungle-400 mb-4">
+        <p className="text-center text-xs text-jungle-400 mb-5">
           체력은 목표 점수({gameState.settings.targetScore})에서 시작해 행동으로만 오르내립니다.
         </p>
 
-        <p className="text-xs font-bold text-jungle-500 mb-2">동물별 경험치</p>
-        <div className="flex flex-col gap-2.5">
+        <p className="text-sm font-bold text-jungle-500 mb-2.5">동물별 경험치</p>
+        <div className="flex flex-col gap-3">
           {ANIMALS.map(a => (
-            <div key={a} className="flex items-center justify-between text-sm">
-              <span className="text-jungle-700">
+            <div key={a} className="flex items-center justify-between text-base">
+              <span className="text-jungle-700 whitespace-nowrap">
                 {ANIMAL_INFO[a].emoji} {ANIMAL_INFO[a].name}
               </span>
-              <div className="flex gap-4 tabular-nums font-mono">
+              <div className="flex gap-5 tabular-nums font-mono">
                 <span
-                  className={`font-bold w-8 text-right ${
+                  className={`font-bold w-14 text-right ${
                     gameState.teams.A.exp[a] >= gameState.teams.B.exp[a]
                       ? 'text-team-a'
                       : 'text-jungle-400'
@@ -151,7 +162,7 @@ export function GameEndScreen({
                 </span>
                 <span className="text-jungle-400">vs</span>
                 <span
-                  className={`font-bold w-8 ${
+                  className={`font-bold w-14 ${
                     gameState.teams.B.exp[a] >= gameState.teams.A.exp[a]
                       ? 'text-team-b'
                       : 'text-jungle-400'
@@ -167,23 +178,27 @@ export function GameEndScreen({
 
       {/* 행동 사용 통계 — 동물별로 몇 번, 총 몇 레벨어치를 발동했는지 */}
       <div
-        className="bg-white rounded-2xl shadow-lg border border-jungle-200 p-6 w-full max-w-md"
+        className="bg-white rounded-2xl shadow-lg border border-jungle-200 p-7 w-full max-w-2xl"
         style={{ animation: 'bounceIn 0.7s cubic-bezier(0.36,0.07,0.19,0.97) 300ms both' }}
       >
-        <p className="text-center text-sm font-bold text-jungle-500 mb-4">행동 사용 통계</p>
-        <div className="grid grid-cols-2 gap-4">
+        <p className="text-center text-base font-bold text-jungle-500 mb-4">행동 사용 통계</p>
+        <div className="grid grid-cols-2 gap-8">
           {(['A', 'B'] as const).map(t => (
             <div key={t}>
-              <p className={`text-xs font-bold mb-2 ${t === 'A' ? 'text-team-a' : 'text-team-b'}`}>
+              <p
+                className={`text-sm font-bold mb-2.5 truncate ${
+                  t === 'A' ? 'text-team-a' : 'text-team-b'
+                }`}
+              >
                 {t === 'A' ? '🟢' : '🔵'} {gameState.teamNames[t]}
               </p>
-              <div className="flex flex-col gap-1.5">
+              <div className="flex flex-col gap-2">
                 {ANIMALS.map(a => {
                   const stat = gameState.teams[t].skillStats[a];
                   return (
-                    <div key={a} className="flex items-center justify-between text-xs text-jungle-700">
-                      <span>{ANIMAL_INFO[a].emoji} {ANIMAL_INFO[a].name}</span>
-                      <span className="tabular-nums font-mono">
+                    <div key={a} className="flex items-center justify-between gap-3 text-sm text-jungle-700">
+                      <span className="whitespace-nowrap">{ANIMAL_INFO[a].emoji} {ANIMAL_INFO[a].name}</span>
+                      <span className="tabular-nums font-mono whitespace-nowrap">
                         {stat.count}회 (합 Lv.{stat.totalLevel})
                       </span>
                     </div>
