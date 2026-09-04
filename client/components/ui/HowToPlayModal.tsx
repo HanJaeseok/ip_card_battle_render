@@ -1,6 +1,6 @@
 'use client';
 
-import { WIN_HP, THRESHOLDS } from 'shared';
+import { THRESHOLDS } from 'shared';
 import { SKILL_COLOR } from '@/lib/skillInfo';
 import type { Animal } from 'shared';
 
@@ -84,6 +84,37 @@ function Step({
       <h4 className="text-xl font-black text-jungle-900 leading-snug mb-3">{title}</h4>
       {children}
     </section>
+  );
+}
+
+/**
+ * 승리 조건 칸의 배경 화살표. 예전에는 이 자리에 "20"과 "0"이라는 숫자를 크게 적었는데,
+ * 목표 점수는 방장이 정하는 값(GameSettings.targetScore)이라 방마다 달라서 늘 맞는 숫자가
+ * 아니었다 — 그래서 숫자를 지우고 "위로 다 채우면 / 아래로 다 깎으면"이라는 방향만
+ * 익살스러운 화살표로 보여준다. 모서리를 굵게 둥글린 뭉툭한 화살표에 살짝 기울기를 줘서
+ * 안내판처럼 딱딱해지지 않게 했다.
+ */
+function ChunkyArrow({ direction }: { direction: 'up' | 'down' }) {
+  return (
+    <svg
+      viewBox="0 0 100 100"
+      aria-hidden
+      className="absolute inset-0 w-full h-full pointer-events-none"
+      style={{
+        opacity: 0.22,
+        transform: direction === 'up' ? 'rotate(-7deg)' : 'rotate(7deg)',
+      }}
+    >
+      <g
+        transform={direction === 'down' ? 'rotate(180 50 50)' : undefined}
+        fill="#ffffff"
+        stroke="#ffffff"
+        strokeWidth="10"
+        strokeLinejoin="round"
+      >
+        <polygon points="50,16 84,50 66,50 66,86 34,86 34,50 16,50" />
+      </g>
+    </svg>
   );
 }
 
@@ -216,14 +247,24 @@ export function HowToPlayModal({ onClose }: { onClose: () => void }) {
 
           {/* ── 4. 승리 ── */}
           <Step no={4} title="체력으로 승부!" className="border-bark-200">
+            {/* 목표 점수는 방마다 다르므로(방장이 정한다) 숫자를 적지 않고, 배경 화살표로
+                "끝까지 채우거나 / 끝까지 깎으면 이긴다"는 방향만 보여준다. */}
             <div className="flex flex-col gap-3 flex-1 min-h-0">
-              <div className="flex-1 flex flex-col justify-center bg-jungle-600 text-white rounded-xl px-4 py-4 text-center">
-                <p className="text-4xl font-black leading-none">{WIN_HP}</p>
-                <p className="text-base font-black mt-2">내 체력이 여기 닿으면 승리 🏆</p>
+              <div className="relative overflow-hidden flex-1 flex flex-col justify-center bg-jungle-600 text-white rounded-xl px-4 py-5 text-center">
+                <ChunkyArrow direction="up" />
+                <p className="relative text-xl font-black leading-snug">
+                  내 체력을
+                  <br />
+                  모두 채우면 승리 🏆
+                </p>
               </div>
-              <div className="flex-1 flex flex-col justify-center bg-rose-500 text-white rounded-xl px-4 py-4 text-center">
-                <p className="text-4xl font-black leading-none">0</p>
-                <p className="text-base font-black mt-2">상대 체력을 다 깎아도 승리 🏆</p>
+              <div className="relative overflow-hidden flex-1 flex flex-col justify-center bg-rose-500 text-white rounded-xl px-4 py-5 text-center">
+                <ChunkyArrow direction="down" />
+                <p className="relative text-xl font-black leading-snug">
+                  상대 체력을
+                  <br />
+                  다 깎아도 승리 🏆
+                </p>
               </div>
             </div>
             <div className="flex items-center gap-2 mt-3 bg-bark-200/50 border-2 border-bark-200 rounded-xl px-3 py-3">

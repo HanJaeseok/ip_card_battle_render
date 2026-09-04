@@ -2,7 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { LobbyChatMessage } from 'shared';
-import { CHAT_MAX_LEN, CHAT_MIN_INTERVAL_MS } from 'shared';
+import { CHAT_MAX_LEN, CHAT_MIN_INTERVAL_MS, SPECTATOR } from 'shared';
 
 // 목록 맨 아래에서 이만큼(px) 안쪽이면 "지금 최신 대화를 보고 있다"고 본다.
 const STICK_TO_BOTTOM_PX = 40;
@@ -106,14 +106,15 @@ function ChatLine({ message, isMine }: { message: LobbyChatMessage; isMine: bool
     return <p className="text-sm text-gray-400 text-center py-0.5">{message.text}</p>;
   }
 
+  // 관전자(팀이 A도 B도 아닌 사람)는 두 팀 색 어느 쪽도 아니어야 헷갈리지 않는다.
+  const nameColor =
+    message.team === 'A' ? 'text-green-700' : message.team === 'B' ? 'text-blue-600' : 'text-purple-500';
+
   return (
     <p className="text-base leading-relaxed break-words">
-      <span
-        className={`mr-2 ${
-          message.team === 'A' ? 'text-green-700' : 'text-blue-600'
-        } ${isMine ? 'font-bold' : 'font-semibold'}`}
-      >
+      <span className={`mr-2 ${nameColor} ${isMine ? 'font-bold' : 'font-semibold'}`}>
         {message.wasHost && '👑 '}
+        {message.team === SPECTATOR && '👀 '}
         {message.nickname}
       </span>
       <span className="text-gray-700">{message.text}</span>

@@ -2,12 +2,21 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import type { GameSettings, Team } from 'shared';
-import { DEFAULT_SETTINGS, NICKNAME_MAX_LEN, TEAM_NAME_MAX_LEN, randomNickname, randomTeamName } from 'shared';
+import type { GameSettings, Seat } from 'shared';
+import {
+  DEFAULT_SETTINGS,
+  NICKNAME_MAX_LEN,
+  SEATS,
+  TEAM_NAME_MAX_LEN,
+  isPlayingSeat,
+  randomNickname,
+  randomTeamName,
+} from 'shared';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { playBgm } from '@/lib/bgm';
 import { HowToPlayModal } from '@/components/ui/HowToPlayModal';
 import { LoadingScreen } from '@/components/ui/LoadingScreen';
+import { seatLabel } from '@/lib/seatInfo';
 import { GameRulesFields } from '@/components/lobby/GameRulesFields';
 import { WaitingRoom } from '@/components/lobby/WaitingRoom';
 
@@ -32,7 +41,10 @@ export default function LobbyPage() {
   const [nicknameHint, setNicknameHint] = useState('');
   useEffect(() => setNicknameHint(randomNickname()), []);
 
-  const [team, setTeam] = useState<Team>('A');
+  // 내가 앉을 자리 — 두 팀 중 하나이거나 관전석. 관전석을 고르면 게임 화면에서
+  // 아무것도 조작할 수 없고 양 팀의 진행만 지켜본다.
+  const [team, setTeam] = useState<Seat>('A');
+  const spectatorSeat = !isPlayingSeat(team);
   const [teamName, setTeamName] = useState('');
   // 방을 만드는 쪽만 입력할 수 있다 — 아직 아무도 들어오지 않은 반대편 팀의 이름까지
   // 미리 정해둔다(비워두면 기존처럼 실제 참가자가 자기 팀 이름을 직접 고른다).
@@ -241,9 +253,9 @@ export default function LobbyPage() {
             </Field>
           )}
 
-          <Field label="팀 선택">
+          <Field label="자리 선택">
             <div className="flex gap-2">
-              {(['A', 'B'] as Team[]).map(t => (
+              {SEATS.map(t => (
                 <button
                   key={t}
                   onClick={() => setTeam(t)}
@@ -251,22 +263,37 @@ export default function LobbyPage() {
                     team === t ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                   }`}
                 >
-                  {t === 'A' ? '🟢 팀 1' : '🔵 팀 2'}
+                  {seatLabel(t)}
                 </button>
               ))}
             </div>
+            {spectatorSeat && (
+              <p className="text-base text-gray-400 mt-1.5">
+                관전자는 게임에 참여하지 않고 양 팀의 대결을 지켜봐요. 카드를 뽑거나 행동을 고를 수는 없어요.
+              </p>
+            )}
           </Field>
 
           {mode === 'create' && (
             <>
+              {/* 방장이 관전석에 앉으면 "우리 팀"이 없으므로, 두 입력칸이 그대로 팀 1·팀 2의
+                  이름이 된다(서버 Room.addPlayer도 같은 순서로 받는다). */}
               <TeamNameField
-                label="우리 팀 이름 (선택, 비워두면 무작위 배정)"
+                label={
+                  spectatorSeat
+                    ? '팀 1 이름 (선택, 비워두면 무작위 배정)'
+                    : '우리 팀 이름 (선택, 비워두면 무작위 배정)'
+                }
                 value={teamName}
                 onChange={setTeamName}
                 avoid={otherTeamName}
               />
               <TeamNameField
-                label="상대 팀 이름 (선택, 비워두면 무작위 배정)"
+                label={
+                  spectatorSeat
+                    ? '팀 2 이름 (선택, 비워두면 무작위 배정)'
+                    : '상대 팀 이름 (선택, 비워두면 무작위 배정)'
+                }
                 value={otherTeamName}
                 onChange={setOtherTeamName}
                 avoid={teamName}

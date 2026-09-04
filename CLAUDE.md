@@ -67,6 +67,10 @@ npm run build
 
 **방장(host)** — 방을 만든 사람이 `hostPlayerId`가 되고, 로비에서만 쓸 수 있는 명령(`movePlayer`/`kickPlayer`/`transferHost`/`setTeamName`/`updateSettings`/`startGame`)을 갖는다. 모든 명령은 `requireHost`가 "게임 시작 전인지 + 방장인지"를 함께 검사한다(`movePlayer`만 예외 — 자기 자신을 옮길 때는 누구나 가능). 방장이 로비에서 빠지면 `removePlayer`가 남아 있는 첫 번째 사람에게 자리를 넘긴다 — 안 그러면 아무도 `startGame`을 부를 수 없어 방이 통째로 멈춘다. 이전에는 전원이 ready가 되는 순간 자동으로 시작했지만, 지금은 방장이 명시적으로 시작 버튼을 눌러야 한다(방장 본인은 ready 개념이 없어 항상 `ready: true`).
 
+**관전자(제3의 자리)** — 로비에서 고르는 "자리"는 `Seat = Team | 'spectator'`(`shared/types.ts`)이고, **게임 엔진에는 관전석이 존재하지 않는다**(`Team`은 여전히 `'A'|'B'` 둘뿐 — 정산·턴 교대·승패가 전부 두 팀을 전제로 짜여 있으니 엔진 타입에 `'spectator'`를 섞지 말 것). 관전자는 `Room`의 `teamPlayerIds.spectator`에만 담기므로 `memberIds`에도 실리지 않고, 그 결과 `expectedPlayerId` 비교에 절대 걸리지 않는다(그래도 이유가 분명한 에러를 주려고 `rejectIfSpectator`가 세 조작 핸들러 앞을 막는다). 관전자는 **인원수에도 준비 상태에도 영향을 주지 않는다** — `ready`는 항상 true로 고정(`setReady`가 관전자를 무시)이고, 시작 조건은 "양 팀에 한 명 이상 + 전원 준비"뿐이라 관전자만 늘어나도 시작이 막히지 않는다. 관전석↔팀 이동 시 `movePlayer`가 `ready`를 다시 맞춘다. 이 규칙들은 `server/__tests__/spectator.test.ts`가 지킨다.
+
+클라이언트에서는 **`myTeam === null`이 곧 "관전 시점"**이다(대기실에서 `sessionStorage.cardBattle_team`에 `'spectator'`가 저장되면 게임 화면이 A/B 어느 쪽도 아니라고 판단해 null로 남긴다). 이 한 값으로 화면 전체가 갈린다: 팀 색이 "우리 연두/상대 붉은"에서 중립 두 색으로 바뀌고(팔레트는 **`client/lib/teamColors.ts` 한 곳** — 기본 민트·핑크이고 CSS 변수 `--spec-*`로만 소비되므로 색을 바꾸려면 이 파일만 고친다), 조작은 전부 막히며, 대신 지금 차례인 팀 색의 반투명 👇 가이드(`GuideFinger`)가 양 팀 차례 모두에 뜬다. **새로 팀 색을 쓰는 UI를 추가할 때는 `myTeam === null` 분기를 빠뜨리지 말 것** — 빠뜨리면 관전자에게 양 팀이 모두 "상대팀(붉은색)"으로 보인다(실제로 자막·결과 화면에서 그 버그가 있었다).
+
 **이름은 항상 채워져 있다** — 닉네임과 팀 이름의 무작위 생성은 `shared/names.ts`(`randomNickname`/`randomTeamName`) 한 곳에 있고 클라이언트·서버가 같이 쓴다. **팀 이름에 "미정(null)" 상태를 되살리지 말 것** — `addPlayer`는 방을 만드는 순간 양 팀 이름을 모두 확정하고(방장이 상대 팀 이름을 비워뒀으면 무작위), `setTeamName`에 빈 이름이 오면 미정으로 되돌리는 게 아니라 무작위로 다시 뽑는다. 예전엔 "그 팀에 실제로 참가하는 사람이 직접 정할 기회"를 남기려고 비워뒀지만 참가 화면에는 팀 이름 입력칸이 아예 없어서, 대기실에 "팀 2 (미정)"만 남는 버그로만 드러났다. 서버는 닉네임도 `normalizeNickname`으로 다시 정리한다(길이 컷 + 빈 이름이면 무작위) — 클라이언트 검증만 믿지 않는다. 양 팀 이름이 같아지는 경로는 `setTeamName`·`startBlockReason`·클라이언트 방 만들기 화면 세 곳에서 함께 막는다(게임에 들어가면 두 팀을 가리는 단서가 이름뿐이다).
 
 **대기실 채팅** — `Room.chatLog`는 `CHAT_HISTORY_MAX`(50)개짜리 링 버퍼이고, 사람이 친 말(`kind: 'chat'`)과 방에서 일어난 일(`kind: 'system'`, `pushSystem`)이 한 줄기로 섞여 있다. 게임 화면에는 채팅이 없다 — `handleChat`은 `started`면 곧바로 return하고, 클라이언트도 `gameStart`에서 `chatLog`를 비운다. 과속·빈 메시지는 **에러를 보내지 않고 조용히 버린다**(실사용자는 클라이언트 쪽 억제에 먼저 걸리므로 빨간 배너는 소음일 뿐이다).
@@ -97,4 +101,6 @@ Render처럼 서비스당 포트를 하나만 외부로 공개하는 플랫폼�
 **진짜 해법은 이펙트 자체를 쓰지 않는 것**: React가 공식 지원하는 "렌더 도중 상태 보정" 패턴(prop 변화를 ref로 감지해 그 조건 블록 안에서 곧바로 `setState` 호출)으로, `gameState`/`lastEvents`가 바뀐 그 렌더 안에서 마스킹 상태도 함께 동기 반영해버린다(`client/hooks/useAnimationQueue.ts`의 `lastEventsForCreditRef` 블록 참고). 이러면 "부풀려진" 중간 렌더 자체가 커밋되지 않으므로, 그 어떤 하위 `useEffect`/`useLayoutEffect`도 잘못된 값을 관측할 기회가 없다. **교훈: 서버 진실과 그 진실을 가리는 마스킹이 반드시 같은 커밋에서 함께 나타나야 하는 경우, `useLayoutEffect`도 충분하지 않을 수 있다 — 렌더 도중 동기 보정을 우선 고려할 것.**
 
 ### 테스트 작성 시 참고
+`server/__tests__/spectator.test.ts`는 엔진이 아니라 방(`Room`)을 직접 세우는 유일한 테스트다 — 가짜 WebSocket(`send`가 JSON을 배열에 쌓는 객체)으로 로비 명령을 넣고 브로드캐스트를 읽는다. 게임을 시작시키면 방이 실제 턴 타이머를 걸므로 반드시 `jest.useFakeTimers()`로 감쌀 것(안 그러면 30초짜리 타이머가 남아 프로세스가 붙들린다).
+
 `server/__tests__/effects.test.ts`는 결정론적 RNG(`rng0`=항상 0번째 선택, `rngLast`=항상 마지막 선택)로 `initGame`부터 각 엔진 함수를 직접 호출하는 패턴을 쓴다. `simulation.test.ts`는 봇 대전을 다회 시뮬레이션해 게임이 항상 유한 턴 내에 끝나는지 등 불변조건을 검증한다.

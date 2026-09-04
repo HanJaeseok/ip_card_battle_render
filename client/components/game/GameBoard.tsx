@@ -12,6 +12,7 @@ import { AcornBallLayer } from '@/components/effects/AcornBallLayer';
 import { FestivalStartBurstLayer } from '@/components/effects/FestivalStartBurstLayer';
 import { MermaidPopup } from './MermaidPopup';
 import { useGuideEnabled } from '@/lib/guideSettings';
+import { spectatorTeamVars } from '@/lib/teamColors';
 import type {
   AcornBallItem,
   CaptionItem,
@@ -46,6 +47,8 @@ export function GameBoard({
   festivalFlash,
   festivalBurst,
   mermaidPopup,
+  spectatorGuideTeam,
+  turnGlow,
 }: {
   gameState: ClientGameState;
   myTeam: Team | null;
@@ -70,28 +73,43 @@ export function GameBoard({
   festivalFlash: boolean;
   festivalBurst: boolean;
   mermaidPopup: { team: Team } | null;
+  // 관전 시점일 때만 채워진다 — 지금 장소를 고르고 있는 팀. 관전자는 아무것도 누를 수
+  // 없지만, 그 팀 색의 손가락으로 "지금 여기서 고르는 중"을 중계해준다.
+  spectatorGuideTeam: Team | null;
+  // 지금 "눈길을 둘 곳"이 이 카드판인지(=장소 선택 단계). 행동 선택 단계로 넘어가면
+  // 이 값이 false가 되고 강조가 화면 아래 행동 선택 띠로 옮겨간다(GameLayout이 정한다).
+  turnGlow: boolean;
 }) {
   // 예전엔 게임당 첫 턴에만 손가락 가이드를 잠깐 보여줬는데, 그 순간을 놓친 사람은
   // 규칙을 다시 확인할 방법이 없었다("규칙을 모르겠다" 피드백의 원인). 이제는 내가
   // 실제로 장소를 고를 수 있는 턴마다 매번 띄우고, 설정 패널(⚙️)에서 끄고 켤 수 있게
   // 했다(useGuideEnabled). 장소를 하나 고른 뒤(행동 선택 단계로 넘어간 뒤)에는 꺼지고,
   // 대신 SkillChoiceBar의 행동 버튼/[턴 마치기]에 가이드가 옮겨간다.
+  // 관전자에게는 "내 차례"가 없으므로(canAct는 늘 false) 대신 지금 장소를 고르는 팀을
+  // 짚어주는 spectatorGuideTeam으로 가이드를 켠다.
   const guideEnabled = useGuideEnabled();
-  const showPlaceGuide = guideEnabled && canAct && gameState.pendingChoice === null;
-  // 테두리 펄스·동물 무드(happy/focus)는 정산 연출이 끝날 때까지 "내 차례"로 유지되는
-  // 화면상 턴을 따른다.
+  const showPlaceGuide =
+    guideEnabled && gameState.pendingChoice === null && (canAct || spectatorGuideTeam !== null);
+  // 동물 무드(happy/focus)는 정산 연출이 끝날 때까지 "내 차례"로 유지되는 화면상 턴을 따른다.
   const isMyTurnDisplayed = myTeam !== null && displayedActiveTeam === myTeam;
+  // 테두리 맥동은 turnGlow가 켜져 있을 때(=장소 선택 단계)만 — 관전 시점이면 "내 턴"이
+  // 아니라 지금 차례인 팀의 색으로 맥동한다.
+  const spectating = myTeam === null;
+  const borderClass = !turnGlow
+    ? 'border-jungle-200'
+    : spectating
+      ? 'board-spectator-turn'
+      : 'board-my-turn';
 
   return (
     <div
       data-board-root
-      className={`flex-1 relative bg-jungle-50/50 rounded-2xl border-2 p-2 grid gap-2 ${
-        isMyTurnDisplayed ? 'board-my-turn' : 'border-jungle-200'
-      }`}
+      className={`flex-1 relative bg-jungle-50/50 rounded-2xl border-2 p-2 grid gap-2 ${borderClass}`}
       style={{
         gridTemplateAreas: '"house center center dock" "forest center center river"',
         gridTemplateColumns: '1fr 1.15fr 1.15fr 1fr',
         gridTemplateRows: '1fr 1fr',
+        ...(spectating ? spectatorTeamVars(displayedActiveTeam) : null),
       }}
     >
       {PLACES.map(place => {
@@ -109,6 +127,7 @@ export function GameBoard({
               forbidden={isForbidden}
               onClick={onPlaceClick}
               showGuide={showPlaceGuide && !isForbidden}
+              guideTeam={spectatorGuideTeam}
             />
           </div>
         );

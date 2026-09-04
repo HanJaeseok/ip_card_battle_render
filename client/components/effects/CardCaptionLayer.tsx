@@ -3,6 +3,7 @@
 import { useLayoutEffect, useState } from 'react';
 import type { Team } from 'shared';
 import type { CaptionItem } from '@/hooks/useAnimationQueue';
+import { spectatorTeamVars } from '@/lib/teamColors';
 
 // 카드판 위에 "페어 성사(카드 폭발 포함) / 효과 발동"을 큰 자막으로 강조한다.
 // pair는 그 동물 스택 위에, effect는 보드 중앙에 고정 표시한다.
@@ -21,14 +22,24 @@ export function CardCaptionLayer({
     <>
       <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 pointer-events-none z-40">
         {effectCaptions.map(c => {
+          // 관전자(myTeam === null)에게는 아군/적군이 없으므로, 발동한 팀의 색
+          // (기본: 민트·핑크 — client/lib/teamColors.ts)으로 쓴다. 예전엔 이 경우가
+          // 그냥 "적군"으로 떨어져 양 팀 자막이 모두 빨갛게 나왔다.
+          const spectating = myTeam === null;
           const sideClass =
             c.team === undefined
               ? 'card-caption-effect-neutral'
-              : myTeam !== null && c.team === myTeam
-                ? 'card-caption-effect-ally'
-                : 'card-caption-effect-enemy';
+              : spectating
+                ? 'card-caption-effect-spectator'
+                : c.team === myTeam
+                  ? 'card-caption-effect-ally'
+                  : 'card-caption-effect-enemy';
           return (
-            <span key={c.id} className={`card-caption card-caption-effect ${sideClass}`}>
+            <span
+              key={c.id}
+              className={`card-caption card-caption-effect ${sideClass}`}
+              style={spectating && c.team !== undefined ? spectatorTeamVars(c.team) : undefined}
+            >
               {c.text}
             </span>
           );

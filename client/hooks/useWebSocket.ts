@@ -10,6 +10,7 @@ import type {
   LobbyChatMessage,
   LobbyPlayer,
   Place,
+  Seat,
   ServerMessage,
   Team,
 } from 'shared';
@@ -58,13 +59,14 @@ export interface UseWebSocketReturn {
   turnDeadline: number;
   lastEvents: ClientGameEvent[];
   error: string | null;
-  createRoom: (nickname: string, team: Team, teamName?: string, settings?: Partial<GameSettings>, otherTeamName?: string) => void;
-  joinRoom: (roomId: string, nickname: string, team: Team, teamName?: string) => void;
+  // team에는 관전석('spectator')도 올 수 있다 — 로비에서 고르는 "자리"이기 때문.
+  createRoom: (nickname: string, team: Seat, teamName?: string, settings?: Partial<GameSettings>, otherTeamName?: string) => void;
+  joinRoom: (roomId: string, nickname: string, team: Seat, teamName?: string) => void;
   createSoloRoom: (nickname: string, teamName?: string, settings?: Partial<GameSettings>) => void;
   sendReady: (ready?: boolean) => void;
   leaveRoom: () => void;
   // 방장 명령 (movePlayer만 "나 자신"을 대상으로 할 땐 누구나 쓸 수 있다)
-  movePlayer: (targetMemberId: string, team: Team) => void;
+  movePlayer: (targetMemberId: string, team: Seat) => void;
   kickPlayer: (targetMemberId: string) => void;
   transferHost: (targetMemberId: string) => void;
   setTeamName: (team: Team, name: string) => void;
@@ -218,12 +220,12 @@ export function useWebSocket(): UseWebSocketReturn {
     return () => ws.close();
   }, [applyState]);
 
-  const createRoom = useCallback((nickname: string, team: Team, teamName?: string, settings?: Partial<GameSettings>, otherTeamName?: string) => {
+  const createRoom = useCallback((nickname: string, team: Seat, teamName?: string, settings?: Partial<GameSettings>, otherTeamName?: string) => {
     setError(null);
     send({ type: 'createRoom', nickname, team, teamName, settings, otherTeamName });
   }, [send]);
 
-  const joinRoom = useCallback((rid: string, nickname: string, team: Team, teamName?: string) => {
+  const joinRoom = useCallback((rid: string, nickname: string, team: Seat, teamName?: string) => {
     setError(null);
     send({ type: 'joinRoom', roomId: rid, nickname, team, teamName });
   }, [send]);
@@ -237,7 +239,7 @@ export function useWebSocket(): UseWebSocketReturn {
 
   const leaveRoom = useCallback(() => send({ type: 'leaveRoom' }), [send]);
 
-  const movePlayer = useCallback((targetMemberId: string, team: Team) => {
+  const movePlayer = useCallback((targetMemberId: string, team: Seat) => {
     send({ type: 'movePlayer', targetMemberId, team });
   }, [send]);
 

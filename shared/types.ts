@@ -1,5 +1,20 @@
 export type Animal = 'sheep' | 'rabbit' | 'mermaid' | 'tiger';
 export type Team = 'A' | 'B';
+
+// ─── 자리(Seat) — 두 팀 + 관전석 ──────────────────────────────────────────────
+// 로비에서 고를 수 있는 자리는 "팀 1 / 팀 2 / 관전자" 셋이다. 관전자는 게임 진행에
+// 아무 영향도 주지 않고 구경만 하는 자리라, 게임 엔진(GameState/TeamState)에는 아예
+// 존재하지 않는다 — Team은 여전히 'A'|'B' 둘뿐이고, 관전석은 방(Room)과 화면에만
+// 있는 개념이다. 엔진 쪽 타입에 'spectator'를 섞지 말 것(정산·턴 교대·승패 판정이
+// 전부 두 팀을 전제로 짜여 있다).
+export const SPECTATOR = 'spectator';
+export type Seat = Team | typeof SPECTATOR;
+export const SEATS: Seat[] = ['A', 'B', SPECTATOR];
+
+/** 이 자리가 실제로 게임을 뛰는 팀인지(=관전석이 아닌지). */
+export function isPlayingSeat(seat: Seat): seat is Team {
+  return seat === 'A' || seat === 'B';
+}
 export type CardNum = 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15;
 export type GamePhase = 'lobby' | 'playing' | 'ended';
 

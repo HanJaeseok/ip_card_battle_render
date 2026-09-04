@@ -48,6 +48,9 @@ export function GameLayout({
   // 턴 제한시간 만료 시각 — 서버 시계가 아니라 내 브라우저 시계 기준으로 환산된 값이
   // 필요해서 gameState가 아니라 useWebSocket에서 따로 받아온다(useWebSocket 주석 참고).
   turnDeadline: number;
+  // null이면 관전 시점 — 어느 쪽도 내 팀이 아니다. 화면 전체가 이 한 값으로 갈린다:
+  // 팀 색이 "우리 연두/상대 붉은"에서 중립 두 색(기본 민트·핑크)으로 바뀌고,
+  // 조작은 전부 막히며, 대신 지금 차례인 팀을 알려주는 옅은 손가락 가이드가 켜진다.
   myTeam: Team | null;
   playerId: string | null;
   onPlaceClick: (place: Place) => void;
@@ -57,6 +60,7 @@ export function GameLayout({
   animState: AnimationState;
 }) {
   const isShaking = animState.screenShakeLevel > 0;
+  const spectating = myTeam === null;
   // N:N(팀에 여러 명)일 때, "우리 팀 차례"인 것과 "지금 나 자신의 차례"인 것은 다르다.
   // 예전엔 팀만 맞으면(=isMyChoiceTurn/isMyDrawTurn이 team만 검사) 같은 팀의 다른
   // 플레이어 차례에도 보드·행동 패널이 나한테까지 클릭 가능하게 보여서, 실제로는
@@ -77,10 +81,32 @@ export function GameLayout({
     gameState.pendingChoice === null &&
     animState.displayedActiveTeam === myTeam &&
     isMyPlayerTurn;
-  // 관전자(myTeam === null)를 포함해 행동 선택 영역은 항상 보여주되, 상세 수치는
-  // 내 팀(없으면 A팀) 기준으로 미리보기한다.
-  const skillPreviewTeam = myTeam ?? 'A';
+  // 관전자를 포함해 행동 선택 영역은 항상 보여주되, 상세 수치는 내 팀 기준으로
+  // 미리보기한다. 관전자는 내 팀이 없으므로 "지금 고르고 있는 팀"(없으면 지금 차례인 팀)을
+  // 대신 본다 — 그래야 관전자 손가락 가이드가 실제로 그 팀이 고를 수 있는 행동을 짚는다.
+  const skillPreviewTeam = myTeam ?? gameState.pendingChoice ?? animState.displayedActiveTeam;
   const noEligible = isMyChoiceTurn && ANIMALS.every(a => previewSkill(gameState, skillPreviewTeam, a).level === 0);
+  // 관전자용 손가락 가이드가 가리킬 팀 — 지금 어느 단계인지에 따라 보드(장소 선택)와
+  // 행동 선택 영역 중 한쪽에만 켠다. 정산 연출이 도는 동안에는(플레이어 화면에서도
+  // 조작이 잠기는 구간) 꺼둔다.
+  const spectatorDrawGuideTeam =
+    spectating && !animState.isSettling && gameState.pendingChoice === null
+      ? animState.displayedActiveTeam
+      : null;
+  const spectatorChoiceGuideTeam =
+    spectating && !animState.isSettling ? gameState.pendingChoice : null;
+
+  // ─ "지금 눈길을 둘 곳" 강조 — 한 차례 내내 카드판만 빛나던 것을, 단계에 따라
+  //   카드판 ↔ 행동 선택 띠로 옮겨간다(장소를 고를 땐 위, 행동을 고를 땐 아래).
+  //   기준은 서버 상태(pendingChoice)가 아니라 "화면에 행동 선택 단계가 실제로 떠 있는
+  //   순간"이다 — 서버는 뽑기를 처리하는 즉시 pendingChoice를 세우지만 화면에는 정산
+  //   연출이 끝나야 그 단계가 보이므로, 그 사이에는 아직 카드판에서 일이 벌어지고 있다
+  //   (GameHeader의 isChoicePhase와 같은 기준).
+  const choiceStageVisible = gameState.pendingChoice !== null && !animState.isSettling;
+  // 관전자는 양 팀 차례 모두에서, 플레이어는 우리 팀 차례에만 강조를 본다.
+  const watchingThisTurn = spectating || animState.displayedActiveTeam === myTeam;
+  const boardTurnGlow = watchingThisTurn && !choiceStageVisible;
+  const myTeamChoosing = !spectating && choiceStageVisible && gameState.pendingChoice === myTeam;
   // 스킬 선택 패널에는 서버가 이미 반영한 진짜 경험치가 아니라, 카드가 팀 영역에 도착하는
   // 연출이 끝나야 비로소 보여주는 "화면상" 경험치를 기준으로 레벨/기댓값을 계산해 넘긴다 —
   // 그래야 "카드 도착 → 경험치 반영 → 레벨업"이라는 순서가 화면에서도 지켜진다.
@@ -160,6 +186,8 @@ export function GameLayout({
             festivalFlash={animState.festivalFlash}
             festivalBurst={animState.festivalBurst}
             mermaidPopup={animState.mermaidPopup}
+            spectatorGuideTeam={spectatorDrawGuideTeam}
+            turnGlow={boardTurnGlow}
           />
         </div>
 
@@ -197,7 +225,7 @@ export function GameLayout({
           <TeamTotalPanel
             team="A"
             gameState={gameState}
-            isMine={myTeam !== null ? myTeam === 'A' : true}
+            myTeam={myTeam}
             pulse={animState.hpPulse.get('A') ?? null}
           />
         </div>
@@ -206,6 +234,8 @@ export function GameLayout({
             gameState={skillPreviewGameState}
             team={skillPreviewTeam}
             interactive={isMyChoiceTurn}
+            spectatorGuideTeam={spectatorChoiceGuideTeam}
+            myTeamChoosing={myTeamChoosing}
             onChoose={onChooseSkill}
             onPass={onPassSkill}
           />
@@ -214,7 +244,7 @@ export function GameLayout({
           <TeamTotalPanel
             team="B"
             gameState={gameState}
-            isMine={myTeam !== null ? myTeam === 'B' : false}
+            myTeam={myTeam}
             pulse={animState.hpPulse.get('B') ?? null}
           />
         </div>

@@ -26,6 +26,8 @@ export default function GamePage() {
     startPreload();
   }, []);
 
+  // 대기실에서 앉았던 자리. 관전석('spectator')이면 어느 팀도 내 팀이 아니므로 myTeam은
+  // null로 남고, 그 null이 곧 게임 화면 전체의 "관전 시점" 스위치가 된다(GameLayout 참고).
   useEffect(() => {
     const saved = sessionStorage.getItem(STORAGE_TEAM) as Team | null;
     if (saved === 'A' || saved === 'B') setMyTeam(saved);

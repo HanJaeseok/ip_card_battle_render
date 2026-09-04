@@ -1,5 +1,6 @@
 import type { ClientGameState, Team } from 'shared';
 import { MAX_TURN, festivalDrawInfoAt } from 'shared';
+import { SPECTATOR_TEAM_PALETTE } from '@/lib/teamColors';
 
 function StepPill({ label, active }: { label: string; active: boolean }) {
   return (
@@ -46,7 +47,13 @@ export function GameHeader({
   // "지금 이 차례가 나(우리팀)인지 상대인지" + "장소 선택 → 행동 선택" 중 어느 단계인지를
   // 도식으로 보여준다. 실제 타이머는 해설판 가운데 오버레이(ActionPrompt)가 담당하므로
   // 여기서는 중복 표시하지 않는다.
-  const relativeLabel = myTeam === null ? gameState.teamNames[displayedActiveTeam] : displayedActiveTeam === myTeam ? '우리팀' : '상대팀';
+  // 관전자에게는 "우리팀/상대팀"이 없으므로 팀 이름을 그대로 쓰고, 그 팀 색(민트·핑크)으로
+  // 칠해 화면 다른 곳(팀 패널·보드 테두리·손가락 가이드)과 같은 기준으로 읽히게 한다.
+  const spectating = myTeam === null;
+  const relativeLabel = spectating ? gameState.teamNames[displayedActiveTeam] : displayedActiveTeam === myTeam ? '우리팀' : '상대팀';
+  const spectatorLabelStyle = spectating
+    ? { color: SPECTATOR_TEAM_PALETTE[displayedActiveTeam].base }
+    : undefined;
   // 서버가 이미 pendingChoice를 세워도(=장소 뽑기 자체는 끝났어도), 카드가 날아가고
   // 경험치·레벨이 반영되는 정산 연출이 다 끝나기 전까지는 아직 "행동 선택" 단계가
   // 아니다 — 그 앞 단계(장소 선택)가 마무리되는 그림을 계속 보여준다.
@@ -60,7 +67,8 @@ export function GameHeader({
   return (
     <header className="relative bg-jungle-800 text-white px-5 py-2.5 flex items-center shadow-md shrink-0 min-h-[3.25rem]">
       <div className="text-sm text-jungle-200 hidden sm:block">
-        {teamLabel} <span className="font-semibold text-white">{nickname}</span> 차례
+        <span style={spectatorLabelStyle}>{teamLabel}</span>{' '}
+        <span className="font-semibold text-white">{nickname}</span> 차례
       </div>
 
       {/* 나뭇잎 장식이 화면 좌우 모서리를 가리므로, 턴/단계 표시는 항상 잘 보이도록 중앙에 고정 */}
@@ -69,7 +77,9 @@ export function GameHeader({
           {gameState.turn} / {MAX_TURN}턴
         </span>
         <div className="step-flow flex items-center gap-1.5 px-2 py-1 rounded-full">
-          <span className="text-xs font-bold text-jungle-200 whitespace-nowrap">[{relativeLabel}]</span>
+          <span className="text-xs font-bold text-jungle-200 whitespace-nowrap" style={spectatorLabelStyle}>
+            [{relativeLabel}]
+          </span>
           <StepPill label="장소 선택" active={isDrawPhase} />
           <FlowArrow />
           <StepPill label="행동 선택" active={isChoicePhase} />

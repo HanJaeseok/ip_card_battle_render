@@ -75,8 +75,16 @@ export function GameEndScreen({
   );
 
   const winnerEmoji = winner === 'draw' ? '🤝' : winner === 'A' ? '🟢' : '🔵';
+  // 관전자(myTeam === null)에게는 "우리팀"이 없다 — 예전엔 그 경우가 그대로 "우리팀
+  // 패배!"로 떨어져 이긴 팀을 구경하고도 패배 문구를 보게 됐다.
   const winnerText =
-    winner === 'draw' ? '무승부!' : myTeam !== null && winner === myTeam ? '우리팀 승리!' : '우리팀 패배!';
+    winner !== 'A' && winner !== 'B'
+      ? '무승부!'
+      : myTeam === null
+        ? `${gameState.teamNames[winner]} 승리!`
+        : winner === myTeam
+          ? '우리팀 승리!'
+          : '우리팀 패배!';
   const flavorAnimal = useMemo(() => pickFlavorAnimal(gameState, winner), [gameState, winner]);
 
   return (

@@ -1,18 +1,40 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import type { CSSProperties } from 'react';
 import type { Team } from 'shared';
+import { SPECTATOR_TEAM_PALETTE } from '@/lib/teamColors';
 
-type Tier = 'mine' | 'ally' | 'enemy';
+type Tier = 'mine' | 'ally' | 'enemy' | 'spectator';
 
 interface Announcement {
   id: number;
   text: string;
   tier: Tier;
+  // 관전자용 알약은 팀 색이 두 가지뿐이라 CSS 클래스 대신 팔레트 값을 그대로 인라인으로
+  // 입힌다(색을 바꾸려면 client/lib/teamColors.ts만 고치면 되는 원칙은 그대로).
+  style?: CSSProperties;
 }
 
 const DUR_MS = 1400;
 let idCounter = 0;
+
+/**
+ * 관전자용 알약 색 — 그 팀 색으로 테두리·글자·그림자를 한 번에 맞춘다.
+ * 화면 배치가 "팀 1 = 왼쪽, 팀 2 = 오른쪽"으로 고정이라(GameLayout의 3열 그리드) 문구도
+ * 그 위치를 그대로 부른다.
+ */
+function spectatorPillStyle(team: Team): CSSProperties {
+  const p = SPECTATOR_TEAM_PALETTE[team];
+  return {
+    fontSize: '2.6rem',
+    color: p.deep,
+    border: `4px solid ${p.strong}`,
+    outline: `4px solid ${p.softEdge}`,
+    outlineOffset: 4,
+    boxShadow: `0 14px 34px ${p.glow}`,
+  };
+}
 
 function computeAnnouncement(
   myTeam: Team | null,
@@ -20,9 +42,17 @@ function computeAnnouncement(
   memberIds: Record<Team, string[]>,
   activeTeam: Team,
   activePlayerIndex: number,
-): { text: string; tier: Tier } | null {
-  // 관전자(myTeam === null)에게는 "내/우리팀" 개념이 없으므로 아무것도 띄우지 않는다.
-  if (myTeam === null) return null;
+): { text: string; tier: Tier; style?: CSSProperties } | null {
+  // 관전자(myTeam === null)에게는 "내/우리팀"이 없다 — 대신 어느 쪽 팀 차례인지를
+  // 화면에서 그 팀이 실제로 앉아 있는 위치(왼쪽/오른쪽)로 알려, 매 턴 좌우로 오가는
+  // 것만 봐도 진행이 읽히게 한다.
+  if (myTeam === null) {
+    return {
+      text: activeTeam === 'A' ? '👈 왼쪽 팀 차례' : '오른쪽 팀 차례 👉',
+      tier: 'spectator',
+      style: spectatorPillStyle(activeTeam),
+    };
+  }
   if (activeTeam !== myTeam) return { text: '상대 차례', tier: 'enemy' };
   const activePlayerId = memberIds[activeTeam]?.[activePlayerIndex];
   if (playerId !== null && activePlayerId === playerId) return { text: '내 차례', tier: 'mine' };
@@ -73,7 +103,12 @@ export function TurnAnnounceBanner({
   if (!announcement) return null;
 
   return (
-    <div key={announcement.id} className={`turn-announce-banner turn-announce-${announcement.tier}`} aria-hidden>
+    <div
+      key={announcement.id}
+      className={`turn-announce-banner turn-announce-${announcement.tier}`}
+      style={announcement.style}
+      aria-hidden
+    >
       {announcement.text}
     </div>
   );

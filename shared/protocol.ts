@@ -1,4 +1,4 @@
-import type { Animal, GameEvent, GameSettings, GameState, Place, Team } from './types';
+import type { Animal, GameEvent, GameSettings, GameState, Place, Seat, Team } from './types';
 
 // ─── 클라이언트 → 서버 ───────────────────────────────────────────────────────
 
@@ -8,8 +8,11 @@ export type ClientMessage =
   // 값이다(팀 이름 짓기가 방장 한쪽에만 있던 걸 보완) — 나중에 그 팀으로 실제 참가하는
   // 사람이 joinRoom에 teamName을 보내도, 이미 정해진 이름이 있으면 그쪽이 우선한다
   // (Room.assignTeamName 참고).
-  | { type: 'createRoom'; nickname: string; team: Team; teamName?: string; otherTeamName?: string; settings?: Partial<GameSettings> }
-  | { type: 'joinRoom'; roomId: string; nickname: string; team: Team; teamName?: string }
+  //
+  // team에는 관전석('spectator')도 올 수 있다. 방을 만드는 사람이 관전석을 골랐다면
+  // teamName/otherTeamName은 각각 팀 1(A)·팀 2(B)의 이름으로 쓰인다.
+  | { type: 'createRoom'; nickname: string; team: Seat; teamName?: string; otherTeamName?: string; settings?: Partial<GameSettings> }
+  | { type: 'joinRoom'; roomId: string; nickname: string; team: Seat; teamName?: string }
   | { type: 'createSoloRoom'; nickname: string; teamName?: string; settings?: Partial<GameSettings> } // 싱글 모드 — 컴퓨터(랜덤 클릭)와 즉시 대전
   // ready는 토글이다 — 값을 생략하면 "준비 완료"로 본다(옛 클라이언트 호환).
   | { type: 'ready'; ready?: boolean }
@@ -17,7 +20,7 @@ export type ClientMessage =
   // ─ 아래는 방장 전용 명령 (단, movePlayer는 자기 자신을 옮길 때만 누구나 쓸 수 있다) ─
   // 대상 지정에는 playerId가 아니라 방 안에서만 통하는 공개 식별자(memberId)를 쓴다 —
   // playerId는 재접속 자격증명이라 다른 참가자에게 노출하면 세션을 가로챌 수 있다.
-  | { type: 'movePlayer'; targetMemberId: string; team: Team }
+  | { type: 'movePlayer'; targetMemberId: string; team: Seat } // 관전석으로 보내는 것도 "자리 이동"이다
   | { type: 'kickPlayer'; targetMemberId: string }
   | { type: 'transferHost'; targetMemberId: string }
   | { type: 'setTeamName'; team: Team; name: string }
@@ -56,8 +59,8 @@ export type ServerMessage =
 export interface LobbyPlayer {
   memberId: string;
   nickname: string;
-  team: Team;
-  ready: boolean;
+  team: Seat;      // 'spectator'면 관전석에 앉아 있다는 뜻(게임에 참여하지 않는다)
+  ready: boolean;  // 관전자는 준비할 것이 없으므로 서버가 항상 true로 유지한다
   connected: boolean;
 }
 
@@ -74,7 +77,7 @@ export interface LobbyChatMessage {
   kind: 'chat' | 'system';
   memberId: string | null; // system이면 null
   nickname: string;        // system이면 ''
-  team: Team | null;       // 닉네임을 팀 색으로 칠하는 용도, system이면 null
+  team: Seat | null;       // 닉네임을 자리 색으로 칠하는 용도, system이면 null
   // 이 말을 할 때 방장이었는지 — 닉네임 앞 👑 표시에 쓴다. "지금" 방장인지를 화면에서
   // 다시 계산하지 않고 서버가 그 순간의 값을 박아 보내므로, 나중에 방장이 바뀌어도
   // 지난 대화의 왕관은 말했던 그 사람에게 그대로 남는다.

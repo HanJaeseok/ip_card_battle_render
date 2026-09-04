@@ -2,6 +2,7 @@
 
 import type { Team } from 'shared';
 import { TurnTimer } from './TurnTimer';
+import { SPECTATOR_TEAM_PALETTE } from '@/lib/teamColors';
 
 // 해설판 가운데에 얹히는 흰 배경(테두리 없음) 안내 오버레이 — 해설 텍스트와 겹치면
 // 이 오버레이가 항상 위에 보인다. 카드를 뽑을 때도, 행동을 고를 때도 같은 자리·같은
@@ -43,6 +44,7 @@ export function ActionPrompt({
   startingTeamReason: 'setting' | 'random';
   teamNames: Record<Team, string>;
 }) {
+  const spectating = myTeam === null;
   const isMyTeamTurn = myTeam !== null && displayedActiveTeam === myTeam;
   const isMyPlayerTurn =
     isMyTeamTurn && playerId !== null && memberIds[displayedActiveTeam]?.[displayedActivePlayerIndex] === playerId;
@@ -51,7 +53,12 @@ export function ActionPrompt({
   let showTimer = false;
   let urgent = false;
 
-  if (!isMyTeamTurn) {
+  if (spectating) {
+    // 관전자에게는 "상대 턴"이라는 말이 성립하지 않는다 — 지금 누구 차례인지를 그대로
+    // 알려주고, 조작은 못 해도 남은 시간은 함께 볼 수 있게 타이머를 띄운다.
+    text = `관전 중 — ${teamNames[displayedActiveTeam]} 차례예요.`;
+    showTimer = true;
+  } else if (!isMyTeamTurn) {
     text = '상대 턴이에요.';
   } else if (!isMyPlayerTurn) {
     text = '내 차례가 아니에요.';
@@ -91,7 +98,14 @@ export function ActionPrompt({
               <TurnTimer deadline={turnDeadline} paused={false} totalMs={turnTotalMs} />
             </div>
           )}
-          <p className={`font-bold whitespace-nowrap ${urgent ? 'text-amber-600' : 'text-jungle-700'}`}>{text}</p>
+          <p
+            className={`font-bold whitespace-nowrap ${urgent ? 'text-amber-600' : 'text-jungle-700'}`}
+            // 관전자에게는 이 문구도 지금 차례인 팀의 색으로 — 어느 팀 차례인지를
+            // 화면 곳곳(패널·보드 테두리·손가락)과 같은 색으로 일관되게 알려준다.
+            style={spectating ? { color: SPECTATOR_TEAM_PALETTE[displayedActiveTeam].deep } : undefined}
+          >
+            {text}
+          </p>
         </div>
       </div>
     </div>

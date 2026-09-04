@@ -4,6 +4,8 @@ import type { Animal, ClientGameState, Team } from 'shared';
 import { previewSkill } from '@/lib/skills';
 import { SKILL_TITLE, SKILL_COLOR, describeSkill } from '@/lib/skillInfo';
 import { useGuideEnabled } from '@/lib/guideSettings';
+import { spectatorTeamVars } from '@/lib/teamColors';
+import { GuideFinger } from './GuideFinger';
 
 const ANIMAL_ORDER: Animal[] = ['sheep', 'rabbit', 'mermaid', 'tiger'];
 
@@ -16,12 +18,21 @@ export function SkillChoiceBar({
   gameState,
   team,
   interactive,
+  spectatorGuideTeam = null,
+  myTeamChoosing = false,
   onChoose,
   onPass,
 }: {
   gameState: ClientGameState;
   team: Team;
   interactive: boolean; // 지금이 실제로 이 팀(=나)이 행동을 고를 차례인지
+  // 관전 시점일 때만 채워진다 — 지금 행동을 고르고 있는 팀. 관전자는 누를 수 없으므로
+  // 그 팀 색 손가락으로 "이 중에서 고르는 중"이라는 진행만 중계한다.
+  spectatorGuideTeam?: Team | null;
+  // 우리 팀이 행동을 고르는 단계인지(팀 안의 다른 사람 차례여도 참) — 이 띠 전체가
+  // 은은하게 빛나 "이번엔 여기를 봐야 한다"고 알린다. 장소 선택 단계에는 대신 카드판이
+  // 빛나고 이 값은 false다(GameLayout이 두 곳을 번갈아 켠다).
+  myTeamChoosing?: boolean;
   onChoose: (animal: Animal) => void;
   onPass: () => void;
 }) {
@@ -31,13 +42,24 @@ export function SkillChoiceBar({
   // 그 순간을 놓치면 다시 볼 방법이 없었다. 이제는 행동을 고를 수 있는 턴마다 매번
   // 보여주고, 설정 패널(⚙️)에서 원하는 사람만 끌 수 있게 했다.
   const guideEnabled = useGuideEnabled();
-  const showSkillGuide = interactive && guideEnabled;
+  const showSkillGuide = guideEnabled && (interactive || spectatorGuideTeam !== null);
+
+  // 행동 선택 단계에만 이 띠가 빛난다. 관전자는 지금 고르는 팀의 색으로(그 팀 색 변수를
+  // 함께 심어준다), 플레이어는 우리 팀 차례일 때 연두색으로.
+  const glowClass = spectatorGuideTeam
+    ? 'skill-bar-spectator-turn'
+    : myTeamChoosing
+      ? 'skill-bar-my-turn'
+      : '';
 
   return (
     // 마우스를 올리면 그 칸이 살짝 떠오르며 커지는 연출을 넣으려면 각 버튼이 이 컨테이너
     // 밖으로 튀어나갈 수 있어야 한다 — 그래서 여기서는 overflow-hidden을 쓰지 않는다
     // (전체 띠의 둥근 모서리는 대신 양 끝 버튼 각각에 rounded-l/r-2xl + overflow-hidden으로 준다).
-    <div className="h-full min-h-0 bg-jungle-950 rounded-2xl grid grid-cols-5 divide-x-2 divide-jungle-700">
+    <div
+      className={`h-full min-h-0 bg-jungle-950 rounded-2xl grid grid-cols-5 divide-x-2 divide-jungle-700 ${glowClass}`}
+      style={spectatorGuideTeam ? spectatorTeamVars(spectatorGuideTeam) : undefined}
+    >
       {ANIMAL_ORDER.map((animal, i) => {
         const preview = previews[i];
         const eligible = preview.level > 0;
@@ -102,11 +124,7 @@ export function SkillChoiceBar({
             </button>
 
             {/* 지금 고를 수 있는(레벨이 있는) 행동마다, 내가 행동을 고를 수 있는 턴이면 매번 뜬다. */}
-            {showSkillGuide && eligible && (
-              <span className="place-guide-finger" aria-hidden>
-                👇
-              </span>
-            )}
+            {showSkillGuide && eligible && <GuideFinger team={spectatorGuideTeam} />}
           </div>
         );
       })}
@@ -133,11 +151,7 @@ export function SkillChoiceBar({
         </button>
 
         {/* 언제나 누를 수 있는 이 버튼도, 행동 선택 차례마다 손가락으로 짚어준다. */}
-        {guideEnabled && interactive && (
-          <span className="place-guide-finger" aria-hidden>
-            👇
-          </span>
-        )}
+        {showSkillGuide && <GuideFinger team={spectatorGuideTeam} />}
       </div>
     </div>
   );

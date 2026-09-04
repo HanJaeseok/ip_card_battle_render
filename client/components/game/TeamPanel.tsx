@@ -4,6 +4,7 @@ import { withDisplayedExp } from '@/lib/skills';
 import { PlayerList } from './PlayerList';
 import { ScorePanel } from './ScorePanel';
 import { LeafDecoration } from '@/components/ui/LeafDecoration';
+import { SPECTATOR_TEAM_PALETTE, spectatorTeamVars } from '@/lib/teamColors';
 
 export function TeamPanel({
   team,
@@ -21,17 +22,23 @@ export function TeamPanel({
   // 실제 gameState.activeTeam은 액션 처리 즉시 다음 팀으로 넘어가 있기 때문.
   const isActiveTeam = animState.displayedActiveTeam === team;
 
-  const teamColor = team === 'A' ? 'text-team-a' : 'text-team-b';
-  const teamRing = isActiveTeam
-    ? team === 'A'
-      ? 'ring-[3px] ring-team-a shadow-lg'
-      : 'ring-[3px] ring-team-b shadow-lg'
-    : '';
+  // 관전 시점(myTeam === null)에는 "우리 팀 / 상대 팀"이라는 기준 자체가 없다. 그래서
+  // 두 팀을 각자의 중립색(기본: 팀 1 민트, 팀 2 핑크 — client/lib/teamColors.ts)으로
+  // 칠해, 배경색만 보고도 어느 쪽이 어느 팀인지 구분할 수 있게 한다.
+  const spectating = myTeam === null;
+  const teamColor = spectating ? '' : team === 'A' ? 'text-team-a' : 'text-team-b';
+  const teamRing = !isActiveTeam
+    ? ''
+    : spectating
+      ? 'spectator-team-panel-active'
+      : team === 'A'
+        ? 'ring-[3px] ring-team-a shadow-lg'
+        : 'ring-[3px] ring-team-b shadow-lg';
 
   // 배경색은 "지금 누구 차례인지"가 아니라 "이 영역이 어느 팀인지"로 고정한다
   // (우리팀 = 연두, 상대팀 = 연붉은) — 차례 표시는 위 teamRing(테두리)만 담당한다.
   const isMine = myTeam === team;
-  const bgClass = myTeam === null ? 'bg-white' : isMine ? 'bg-lime-100' : 'bg-rose-100';
+  const bgClass = spectating ? 'spectator-team-panel' : isMine ? 'bg-lime-100' : 'bg-rose-100';
 
   const teamEmoji = team === 'A' ? '🟢' : '🔵';
   const label = `${teamEmoji} ${gameState.teamNames[team]}`;
@@ -49,12 +56,16 @@ export function TeamPanel({
     <div
       data-rabbit-target={team}
       className={`relative w-full h-full min-h-0 shrink-0 ${bgClass} rounded-2xl border border-jungle-200 ${teamRing} ${recoilClass} ${hitShakeClass} ${rabbitPressureClass} transition-colors transition-shadow`}
+      style={spectating ? spectatorTeamVars(team) : undefined}
     >
       <LeafDecoration position="tr" size={40} swaying={justActed} />
       <LeafDecoration position="bl" size={32} swaying={justActed} />
 
       <div className="relative z-[1] h-full min-h-0 p-4 flex flex-col gap-3 overflow-y-auto">
-        <div className={`text-base font-bold ${teamColor} flex items-center gap-1.5 flex-wrap`}>
+        <div
+          className={`text-base font-bold ${teamColor} flex items-center gap-1.5 flex-wrap`}
+          style={spectating ? { color: SPECTATOR_TEAM_PALETTE[team].deep } : undefined}
+        >
           {label}
           {/* 그냥 색 있는 글자로 "우리팀♥"라고 붙여두던 걸, 다른 곳(GameHeader의
               StepPill 등)과 같은 알약 배지 모양으로 바꿨다 — 배경 없이 튀는 색 글자만

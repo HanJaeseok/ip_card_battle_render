@@ -1,15 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import type { GameSettings, LobbyChatMessage, LobbyPlayer, Team } from 'shared';
-import { TEAM_NAME_MAX_LEN, randomTeamName } from 'shared';
+import type { GameSettings, LobbyChatMessage, LobbyPlayer, Seat, Team } from 'shared';
+import { SEATS, SPECTATOR, TEAM_NAME_MAX_LEN, isPlayingSeat, randomTeamName } from 'shared';
+import { SEAT_META, seatLabel } from '@/lib/seatInfo';
 import { GameRulesInputs, RuleSummary } from './GameRulesFields';
 import { ChatPanel } from './ChatPanel';
-
-const TEAM_META: Record<Team, { badge: string; fallback: string; ring: string }> = {
-  A: { badge: '🟢', fallback: '팀 1', ring: 'border-green-200' },
-  B: { badge: '🔵', fallback: '팀 2', ring: 'border-blue-200' },
-};
 
 /** 초대 링크 — 로비 첫 화면(`/`)을 방 코드가 채워진 "방 참가하기" 상태로 열어준다. */
 function inviteUrl(roomId: string): string {
@@ -60,7 +56,7 @@ export interface WaitingRoomProps {
   onReady: (ready: boolean) => void;
   onStart: () => void;
   onLeave: () => void;
-  onMove: (targetMemberId: string, team: Team) => void;
+  onMove: (targetMemberId: string, team: Seat) => void;
   onKick: (targetMemberId: string) => void;
   onTransferHost: (targetMemberId: string) => void;
   onRenameTeam: (team: Team, name: string) => void;
@@ -75,19 +71,20 @@ export function WaitingRoom({
   const me = players.find(p => p.memberId === myMemberId) ?? null;
   const teamA = players.filter(p => p.team === 'A');
   const teamB = players.filter(p => p.team === 'B');
+  const spectators = players.filter(p => !isPlayingSeat(p.team));
+  const iAmSpectator = me !== null && !isPlayingSeat(me.team);
 
   // 방장이 시작 버튼을 누를 수 있는지 — 서버(Room.startBlockReason)와 같은 조건을
   // 화면에도 그대로 보여줘서, 왜 아직 시작할 수 없는지 방장이 바로 알 수 있게 한다.
+  // 관전자는 인원수에도, 준비 여부에도 영향을 주지 않는다(서버가 항상 준비 완료로 둔다).
   const blockReason =
-    players.length < 2
-      ? '두 명 이상 모여야 시작할 수 있어요.'
-      : teamA.length === 0 || teamB.length === 0
-        ? '양 팀에 각각 한 명 이상 있어야 해요.'
-        : players.some(p => !p.ready)
-          ? '아직 준비하지 않은 참가자가 있어요.'
-          : teamNames.A !== null && teamNames.A === teamNames.B
-            ? '양 팀 이름이 같아요. 한쪽 이름을 바꿔주세요.'
-            : null;
+    teamA.length === 0 || teamB.length === 0
+      ? '양 팀에 각각 한 명 이상 있어야 해요. (관전자는 인원에 들어가지 않아요)'
+      : players.some(p => !p.ready)
+        ? '아직 준비하지 않은 참가자가 있어요.'
+        : teamNames.A !== null && teamNames.A === teamNames.B
+          ? '양 팀 이름이 같아요. 한쪽 이름을 바꿔주세요.'
+          : null;
 
   return (
     <div className="bg-white rounded-2xl shadow-lg p-8 sm:p-10 w-full max-w-4xl flex flex-col gap-6">
@@ -112,6 +109,16 @@ export function WaitingRoom({
         ))}
       </div>
 
+      <SpectatorRow
+        players={spectators}
+        myMemberId={myMemberId}
+        hostMemberId={hostMemberId}
+        isHost={isHost}
+        onMove={onMove}
+        onKick={onKick}
+        onTransferHost={onTransferHost}
+      />
+
       <ChatPanel
         messages={chatLog}
         myMemberId={myMemberId}
@@ -132,6 +139,12 @@ export function WaitingRoom({
           </button>
           {blockReason && <p className="text-center text-base text-gray-400">{blockReason}</p>}
         </div>
+      ) : iAmSpectator ? (
+        // 관전자는 준비할 것이 없다(서버도 항상 준비 완료로 둔다) — 준비 버튼 대신
+        // 지금 어떤 상태인지만 알려준다.
+        <p className="text-center text-lg text-purple-500 bg-purple-50 border border-purple-200 rounded-xl py-4">
+          👀 관전자로 참가했어요. 방장이 시작하면 양 팀의 대결을 지켜볼 수 있어요.
+        </p>
       ) : (
         <div className="flex flex-col gap-2">
           <button
@@ -221,16 +234,15 @@ function TeamColumn({
   myMemberId: string | null;
   hostMemberId: string | null;
   isHost: boolean;
-  onMove: (targetMemberId: string, team: Team) => void;
+  onMove: (targetMemberId: string, team: Seat) => void;
   onKick: (targetMemberId: string) => void;
   onTransferHost: (targetMemberId: string) => void;
   onRenameTeam: (team: Team, name: string) => void;
 }) {
-  const meta = TEAM_META[team];
-  const otherTeam: Team = team === 'A' ? 'B' : 'A';
+  const meta = SEAT_META[team];
 
   return (
-    <div className={`bg-gray-50 rounded-xl p-4 min-h-[140px] border ${meta.ring}`}>
+    <div className={`bg-gray-50 rounded-xl p-4 min-h-[140px] border ${meta.border}`}>
       <TeamNameRow
         team={team}
         name={name}
@@ -250,7 +262,57 @@ function TeamColumn({
               isMe={p.memberId === myMemberId}
               isTheHost={p.memberId === hostMemberId}
               viewerIsHost={isHost}
-              otherTeam={otherTeam}
+              onMove={onMove}
+              onKick={onKick}
+              onTransferHost={onTransferHost}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * 관전석 — 두 팀 칸 아래에 가로로 길게 붙는 제3의 자리. 여기 앉은 사람은 게임에
+ * 참여하지 않고 구경만 하므로 준비 표시도, 인원수 계산도 따로 하지 않는다.
+ */
+function SpectatorRow({
+  players, myMemberId, hostMemberId, isHost, onMove, onKick, onTransferHost,
+}: {
+  players: LobbyPlayer[];
+  myMemberId: string | null;
+  hostMemberId: string | null;
+  isHost: boolean;
+  onMove: (targetMemberId: string, team: Seat) => void;
+  onKick: (targetMemberId: string) => void;
+  onTransferHost: (targetMemberId: string) => void;
+}) {
+  return (
+    <div className={`bg-gray-50 rounded-xl px-4 py-3 border ${SEAT_META[SPECTATOR].border}`}>
+      {/* 아무도 없을 때는 한 줄로만 남긴다 — 대기실은 이미 길어서(팀·채팅·규칙) 빈 칸이
+          자리를 크게 차지하면 정작 자주 누르는 버튼이 스크롤 밖으로 밀린다. */}
+      <div className="flex items-baseline gap-2 flex-wrap">
+        <p className="font-semibold text-gray-700 text-lg">
+          {seatLabel(SPECTATOR)}
+          {players.length > 0 && ` (${players.length}명)`}
+        </p>
+        <p className="text-base text-gray-400">
+          {players.length === 0
+            ? '아직 관전자가 없어요 — 구경만 하려면 이름 옆 "👀 관전자"를 누르세요'
+            : '게임에 참여하지 않고 구경만 해요'}
+        </p>
+      </div>
+
+      {players.length > 0 && (
+        <div className="flex flex-col gap-1 mt-2">
+          {players.map(p => (
+            <PlayerRow
+              key={p.memberId}
+              player={p}
+              isMe={p.memberId === myMemberId}
+              isTheHost={p.memberId === hostMemberId}
+              viewerIsHost={isHost}
               onMove={onMove}
               onKick={onKick}
               onTransferHost={onTransferHost}
@@ -271,7 +333,7 @@ function TeamNameRow({
   canEdit: boolean;
   onRename: (team: Team, name: string) => void;
 }) {
-  const meta = TEAM_META[team];
+  const meta = SEAT_META[team];
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(name ?? '');
 
@@ -335,7 +397,7 @@ function TeamNameRow({
   return (
     <div className="flex items-center gap-2">
       <p className="font-semibold text-gray-700 text-lg truncate">
-        {meta.badge} {name ?? `${meta.fallback} (미정)`}
+        {meta.badge} {name ?? `${meta.label} (미정)`}
       </p>
       {canEdit && (
         <button
@@ -351,15 +413,14 @@ function TeamNameRow({
 }
 
 function PlayerRow({
-  player, isMe, isTheHost, viewerIsHost, otherTeam,
+  player, isMe, isTheHost, viewerIsHost,
   onMove, onKick, onTransferHost,
 }: {
   player: LobbyPlayer;
   isMe: boolean;
   isTheHost: boolean;
   viewerIsHost: boolean;
-  otherTeam: Team;
-  onMove: (targetMemberId: string, team: Team) => void;
+  onMove: (targetMemberId: string, team: Seat) => void;
   onKick: (targetMemberId: string) => void;
   onTransferHost: (targetMemberId: string) => void;
 }) {
@@ -372,16 +433,27 @@ function PlayerRow({
     return () => clearTimeout(t);
   }, [confirming]);
 
-  // 팀 이동은 방장이 아무나, 그 외에는 자기 자신만 할 수 있다(서버도 같은 규칙).
+  // 자리 이동은 방장이 아무나, 그 외에는 자기 자신만 할 수 있다(서버도 같은 규칙).
+  // 지금 앉아 있는 자리를 뺀 나머지(다른 팀 + 관전석)가 옮겨갈 수 있는 곳이다.
   const canMove = viewerIsHost || isMe;
   const canManage = viewerIsHost && !isMe;
+  const moveTargets = SEATS.filter(s => s !== player.team);
+  const isSpectator = !isPlayingSeat(player.team);
 
   return (
     <div className="flex items-center gap-2 py-1">
       <span
-        title={player.connected ? (player.ready ? '준비 완료' : '준비 중') : '연결이 끊겼어요'}
+        title={
+          !player.connected
+            ? '연결이 끊겼어요'
+            : isSpectator
+              ? '관전자 (준비 없이 바로 지켜봐요)'
+              : player.ready
+                ? '준비 완료'
+                : '준비 중'
+        }
         className={`w-2 h-2 rounded-full shrink-0 ${
-          !player.connected ? 'bg-red-300' : player.ready ? 'bg-green-500' : 'bg-gray-300'
+          !player.connected ? 'bg-red-300' : isSpectator ? 'bg-purple-400' : player.ready ? 'bg-green-500' : 'bg-gray-300'
         }`}
       />
       <span className={`text-lg truncate ${isMe ? 'text-green-700 font-semibold' : 'text-gray-700'}`}>
@@ -413,15 +485,17 @@ function PlayerRow({
         </div>
       ) : (
         <div className="flex items-center gap-1 shrink-0">
-          {canMove && (
-            <button
-              onClick={() => onMove(player.memberId, otherTeam)}
-              title={`${TEAM_META[otherTeam].fallback}(으)로 옮기기`}
-              className="text-sm text-gray-500 bg-white border border-gray-200 hover:bg-gray-100 px-2 py-1 rounded"
-            >
-              팀 변경
-            </button>
-          )}
+          {canMove &&
+            moveTargets.map(seat => (
+              <button
+                key={seat}
+                onClick={() => onMove(player.memberId, seat)}
+                title={`${SEAT_META[seat].label}(으)로 옮기기`}
+                className="text-sm text-gray-500 bg-white border border-gray-200 hover:bg-gray-100 px-2 py-1 rounded"
+              >
+                {seatLabel(seat)}
+              </button>
+            ))}
           {canManage && (
             <>
               <button

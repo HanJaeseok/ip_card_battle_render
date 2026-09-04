@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import type { ClientGameState, Team } from 'shared';
 import { LeafDecoration } from '@/components/ui/LeafDecoration';
+import { spectatorTeamVars } from '@/lib/teamColors';
 
 // 팀 체력(=점수) — 아래가 0, 위가 WIN_HP인 유리구슬. 중간(시작값)부터 차오르거나
 // 줄어든다. 상표토끼로 오르면 연두색 기운이 샤라락 훑고, 특허랑이에게 뺏기면
@@ -10,17 +11,20 @@ import { LeafDecoration } from '@/components/ui/LeafDecoration';
 export function TeamTotalPanel({
   team,
   gameState,
-  isMine,
+  myTeam,
   pulse,
 }: {
   team: Team;
   gameState: ClientGameState;
-  isMine: boolean;
+  // 보는 사람의 팀 — null이면 관전 시점이라 "내 구슬/상대 구슬"이 아니라 두 구슬을
+  // 각 팀 색(client/lib/teamColors.ts의 팔레트)으로 칠한다.
+  myTeam: Team | null;
   pulse?: { id: number; direction: 'gain' | 'loss' } | null;
 }) {
   const hp = gameState.teams[team].hp;
   const winHp = gameState.settings.targetScore * 2;
-  const toneClass = isMine ? 'hp-orb-mine' : 'hp-orb-enemy';
+  const spectating = myTeam === null;
+  const toneClass = spectating ? 'hp-orb-spectator' : myTeam === team ? 'hp-orb-mine' : 'hp-orb-enemy';
   const fillPct = Math.max(0, Math.min(100, (hp / winHp) * 100));
 
   const [activePulse, setActivePulse] = useState<{ id: number; direction: 'gain' | 'loss' } | null>(null);
@@ -57,7 +61,10 @@ export function TeamTotalPanel({
   const segmentLines = Array.from({ length: winHp - 1 }, (_, i) => ((i + 1) / winHp) * 100);
 
   return (
-    <div className={`hp-orb w-full shrink-0 h-full ${toneClass}`}>
+    <div
+      className={`hp-orb w-full shrink-0 h-full ${toneClass}`}
+      style={spectating ? spectatorTeamVars(team) : undefined}
+    >
       <LeafDecoration position="tl" size={30} swaying={activePulse !== null} />
       <LeafDecoration position="br" size={30} swaying={activePulse !== null} />
       <div className="hp-orb-liquid" style={{ height: `${fillPct}%` }}>
