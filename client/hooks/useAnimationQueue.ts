@@ -572,9 +572,9 @@ export function useAnimationQueue(
 
     // ── Pass 0: 해설판 커멘터리 생성 (즉시 반영, 통합 로그) ─────────────────
     if (gameState) {
-      // A팀/B팀이 아니라 방 생성 시 입력한 실제 팀 이름으로 표기한다. 뒤에 "팀"을 붙여
-      // 팀 이름과 다른 낱말이 헷갈리지 않게 한다(예: "상표" → "[상표팀]").
-      const teamLabel = (t: Team) => `[${gameState.teamNames[t]}팀]`;
+      // A팀/B팀이 아니라 방 생성 시 입력한 실제 팀 이름을 그대로 쓴다. 뒤에 "팀"을
+      // 덧붙이면 이미 "팀"으로 끝나는 이름이 "개발팀팀"처럼 겹쳐 보인다.
+      const teamLabel = (t: Team) => `[${gameState.teamNames[t]}]`;
 
       const newLines: { team: Team | null; text: string }[] = [];
       lastEvents.forEach(ev => {

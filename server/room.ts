@@ -22,8 +22,8 @@ import { serializeEvents, serializeState } from './serializer';
 
 // 싱글 모드 컴퓨터 플레이어는 실제 WebSocket 연결이 없으므로 고정 ID로 취급한다.
 const CPU_PLAYER_ID = 'CPU';
-const CPU_NICKNAME = '컴퓨터';
-const CPU_TEAM_NAME = '컴퓨터';
+const CPU_NICKNAME = 'CPU 병사';
+const CPU_TEAM_NAME = 'AI 군단';
 // 클라이언트의 스킬 발동 연출(디자인어 팝업 2000ms 등)이 끝나기 전에 컴퓨터가 다음 수를
 // 두면, 그 사이 상대 턴 배경색이 거의 안 보이고 곧바로 내 턴으로 돌아온 것처럼 보인다.
 // 가장 긴 연출보다 여유 있게 최소 대기 시간을 잡아 그런 일이 최대한 드물게 한다.
