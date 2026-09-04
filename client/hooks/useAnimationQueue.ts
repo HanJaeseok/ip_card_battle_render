@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { flushSync } from 'react-dom';
 import type { Animal, ClientGameEvent, ClientGameState, Place, StackedCard, Team } from 'shared';
 import { ANIMALS } from 'shared';
 import { ANIMAL_INFO } from '@/lib/animals';
@@ -301,8 +300,8 @@ export function useAnimationQueue(
   // 이번 액션의 정산이 끝나면 화면 턴을 어디로 넘겨야 하는지 미리 기록해둔다. 싱글 모드처럼
   // 상대(컴퓨터)가 아주 빠르게 다음 수를 두면, 이 턴 전환이 실행되기도 전에 다음 액션이
   // 도착해 타이머가 통째로 취소될 수 있다 — 그러면 상대 턴 배경색이 한 번도 안 보이고
-  // 곧바로 내 턴으로 되돌아온 것처럼 보인다. 아래에서 이 값을 이용해 최소 한 프레임은
-  // 반드시 반영되도록 강제한다.
+  // 곧바로 내 턴으로 되돌아온 것처럼 보인다. 다음 액션이 도착한 렌더 도중(아래
+  // lastEventsForCreditRef 블록)에 이 값을 반드시 반영하고 넘어간다.
   const pendingFlipRef = useRef<{ team: Team; playerIndex: number } | null>(null);
 
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -331,6 +330,20 @@ export function useAnimationQueue(
   const lastEventsForCreditRef = useRef<ClientGameEvent[] | null>(null);
   if (lastEvents !== lastEventsForCreditRef.current) {
     lastEventsForCreditRef.current = lastEvents;
+
+    // 이전 액션의 턴 전환이 아직 실행되지 못한 채 이번 액션이 도착했다면, 아래 레이아웃
+    // 이펙트가 타이머를 통째로 취소하기 전에 그 전환을 여기서 먼저 반영한다. 예전에는
+    // 이펙트 안에서 flushSync로 밀어넣었는데, 레이아웃 이펙트는 이미 커밋 단계라
+    // "flushSync was called from inside a lifecycle method" 경고가 났다. exp 마스킹과
+    // 똑같이 렌더 도중 동기 보정으로 옮기면 경고 없이 같은 목적을 달성한다 —
+    // 오히려 한 단계 더 이르게, 새 gameState와 같은 커밋에 반영된다.
+    if (lastEvents.length > 0 && pendingFlipRef.current) {
+      const { team, playerIndex } = pendingFlipRef.current;
+      pendingFlipRef.current = null;
+      setDisplayedActiveTeam(team);
+      setDisplayedActivePlayerIndex(playerIndex);
+    }
+
     const newCredits: Record<string, number> = {};
     lastEvents.forEach(ev => {
       if (ev.type === 'collect') {
@@ -444,26 +457,17 @@ export function useAnimationQueue(
     }, atMs);
   };
 
-  // exp 가림(pendingExpCredit)은 이제 이 이펙트보다 먼저(렌더 도중, 위쪽
-  // lastEventsForCreditRef 블록) 동기 반영되므로 이 이펙트 자체는 useEffect로도
-  // 충분하다 — 다만 턴 전환(pendingFlipRef → flushSync) 등 다른 타이밍에도 이미
-  // 문제없이 검증된 useLayoutEffect를 그대로 유지한다(불필요한 위험 회피).
+  // exp 가림(pendingExpCredit)도, 미반영 턴 전환(pendingFlipRef)도 이제 이 이펙트보다
+  // 먼저(렌더 도중, 위쪽 lastEventsForCreditRef 블록) 동기 반영되므로 이 이펙트 자체는
+  // useEffect로도 충분하다 — 다만 이미 문제없이 검증된 useLayoutEffect를 그대로
+  // 유지한다(불필요한 위험 회피).
   // (개발 원칙: 애니메이션과 실제 로직의 순서가 항상 일치해야 한다 — 카드 뽑기 →
   // 동물 영역으로 도착 → 경험치 반영 → 정산해서 레벨업. CLAUDE.md 참고.)
   useLayoutEffect(() => {
     if (lastEvents.length === 0) return;
 
-    // 이전 액션의 턴 전환이 아직 실행되지 못한 채 이번 액션이 도착했다면, 아래에서
-    // 타이머를 통째로 취소하기 전에 그 전환을 먼저 강제로(동기적으로) 반영해
-    // 최소 한 프레임은 화면에 나타나게 한다.
-    if (pendingFlipRef.current) {
-      const { team, playerIndex } = pendingFlipRef.current;
-      pendingFlipRef.current = null;
-      flushSync(() => {
-        setDisplayedActiveTeam(team);
-        setDisplayedActivePlayerIndex(playerIndex);
-      });
-    }
+    // (이전 액션의 미반영 턴 전환은 위쪽 lastEventsForCreditRef 블록에서 이미 렌더 도중
+    //  동기 반영됐다 — 여기서 다시 건드리지 않는다.)
 
     timersRef.current.forEach(clearTimeout);
     timersRef.current = [];
