@@ -78,8 +78,15 @@ export function GameHeader({
           <span className="festival-header-badge text-sm font-bold whitespace-nowrap">
             🌰 도토리 축제 진행 중! 보너스 랜덤 뽑기 +{festivalInfo.count}회!
             {/* 강화 주기가 남은 턴보다 커서 다시 오를 일이 없으면 예고 자체를 감춘다. */}
-            {festivalInfo.turnsToNextStage !== null &&
-              ` (${festivalInfo.turnsToNextStage}턴 후 +${festivalInfo.nextCount}회)`}
+            {festivalInfo.turnsToNextStage !== null && (
+              // 예고는 본문보다 한 단계 물러나 보여야 하므로 알약 전체를 반투명(opacity-50)으로
+              // 깐다. 색(text-amber-100)을 직접 주는 것도 중요한데, 그러지 않으면 부모의
+              // 깜빡임 애니메이션이 상속돼 숫자까지 함께 명멸한다.
+              <span className="ml-2 inline-flex items-baseline gap-1 rounded-full border border-amber-300/70 bg-amber-900 px-2 py-px text-xs font-bold text-amber-100 opacity-50 align-middle">
+                <span className="tabular-nums">{festivalInfo.turnsToNextStage}턴 후</span>
+                <span className="tabular-nums">{festivalInfo.nextCount}회</span>
+              </span>
+            )}
           </span>
         )}
       </div>
