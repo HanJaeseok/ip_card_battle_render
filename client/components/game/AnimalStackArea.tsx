@@ -1,7 +1,7 @@
 'use client';
 
 import { useLayoutEffect, useRef, useState } from 'react';
-import type { Animal, StackedCard } from 'shared';
+import type { Animal, StackedCard, Team } from 'shared';
 import { ANIMALS } from 'shared';
 import { StackCardView } from './StackCardView';
 import type { ShakingPile } from '@/hooks/useAnimationQueue';
@@ -19,12 +19,14 @@ export function AnimalStackArea({
   shakingPile,
   newCardId,
   isMyTurn,
+  myTeam,
 }: {
   stackCards: Record<Animal, StackedCard[]>;
   collectingIds: ReadonlySet<number>;
   shakingPile: ShakingPile | null;
   newCardId: number | null;
   isMyTurn: boolean;
+  myTeam: Team | null;
 }) {
   return (
     <div className="flex flex-col gap-2 w-full h-full">
@@ -37,6 +39,7 @@ export function AnimalStackArea({
           isShaking={shakingPile?.animal === animal}
           newCardId={newCardId}
           isMyTurn={isMyTurn}
+          myTeam={myTeam}
         />
       ))}
     </div>
@@ -50,6 +53,7 @@ function AnimalStackRow({
   isShaking,
   newCardId,
   isMyTurn,
+  myTeam,
 }: {
   animal: Animal;
   cards: StackedCard[];
@@ -57,12 +61,26 @@ function AnimalStackRow({
   isShaking: boolean;
   newCardId: number | null;
   isMyTurn: boolean;
+  myTeam: Team | null;
 }) {
-  // cards는 이미 "지금 화면에 그려야 하는" 카드만 들어있다(useAnimationQueue의 stackCards).
-  // 총합 배지는 실제로 아직 미획득인 카드만 센다 — 이 숫자는 경험치로 들어갈 값이다(점수 아님).
-  const total = cards
-    .filter(c => c.collectedBy === null)
-    .reduce((s, c) => s + c.num, 0);
+  // cards는 이미 "지금 화면에 그려야 하는" 카드만 들어있다(useAnimationQueue의 stackCards) —
+  // 짝이 맞아 collectedBy가 찍힌 카드도 팀 칸에 실제로 도착하는 순간에야 여기서 빠진다.
+  // 그래서 총합은 미획득 카드만이 아니라 화면에 남아 있는 카드를 전부 센다. 예전에는
+  // 미획득 카드만 세는 바람에, 짝이 맞는 순간 카드는 아직 그대로 쌓여 있는데 옆 숫자만
+  // 통째로 사라져 "얘는 왜 숫자가 없지?" 싶은 화면이 됐다.
+  // (이 숫자는 경험치로 들어갈 값이다 — 점수가 아니다.)
+  const total = cards.reduce((s, c) => s + c.num, 0);
+
+  // 숫자를 지우는 대신 글자색으로 "지금 누가 가져가는 중인지"만 알린다 — 내 팀이 가져가면
+  // 짙은 녹색, 상대가 가져가면 짙은 적색. 관전자(myTeam === null)에게는 내 편/적 구분
+  // 자체가 없으므로 기본색을 그대로 두고, 카드가 좌(A)/우(B)로 날아가는 방향에 맡긴다.
+  const collectingTeam = cards.find(c => c.collectedBy !== null)?.collectedBy ?? null;
+  const totalColorClass =
+    collectingTeam === null || myTeam === null
+      ? 'text-jungle-900'
+      : collectingTeam === myTeam
+        ? 'text-green-700'
+        : 'text-red-700';
 
   // 카드가 너무 많이 쌓여 실제 컨테이너 너비를 넘어서면(예: 실용신양/도토리 축제로
   // 한 번에 여러 장이 쌓였을 때), 넘치는 대신 전체를 좁혀서 영역 안에 다 겹쳐 보이게
@@ -102,7 +120,11 @@ function AnimalStackRow({
       />
       <div className="relative flex flex-col items-center justify-center shrink-0 w-16">
         {total > 0 && (
-          <span className="stack-total-badge text-4xl font-black text-jungle-900 tabular-nums">{total}</span>
+          <span
+            className={`stack-total-badge text-4xl font-black tabular-nums transition-colors duration-200 ${totalColorClass}`}
+          >
+            {total}
+          </span>
         )}
       </div>
       <div ref={cardsWrapRef} className="relative flex items-center flex-1 min-w-0 h-full overflow-visible">
