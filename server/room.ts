@@ -29,6 +29,13 @@ const CPU_TEAM_NAME = '컴퓨터';
 // 가장 긴 연출보다 여유 있게 최소 대기 시간을 잡아 그런 일이 최대한 드물게 한다.
 const CPU_THINK_MIN_MS = 2200;
 const CPU_THINK_MAX_MS = 3200;
+// 행동(스킬) 선택은 위 값을 그대로 쓰면 안 된다 — 서버는 뽑기를 처리하는 즉시 pendingChoice를
+// 세우지만, 화면에는 슬롯 → 카드 등장 → 페어 정산 연출이 다 끝나야 [행동 선택] 단계가 뜬다.
+// 처리 시각부터 세면 그 연출이 끝나기도 전에 컴퓨터가 골라버려서, 사람 눈에는 행동 선택
+// 단계를 통째로 건너뛴 것처럼 보인다. 그래서 아래 대기 시간은 "연출이 끝난 시각"(settleGraceMs)
+// 부터 다시 세고, 그 위에 짧게 생각하는 척하는 시간만 얹는다.
+const CPU_SKILL_THINK_MIN_MS = 1000;
+const CPU_SKILL_THINK_MAX_MS = 1500;
 
 /**
  * 닉네임 정리 — 클라이언트가 이미 12자로 자르고 빈 이름을 막지만, 서버도 같은 기준을
@@ -566,7 +573,7 @@ export class Room {
     else this.resetTimer(events);
     this.broadcastResult(events);
 
-    if (this.state.phase === 'playing') this.scheduleComputerActionIfNeeded();
+    if (this.state.phase === 'playing') this.scheduleComputerActionIfNeeded(events);
   }
 
   handleChooseSkill(playerId: string, animal: Animal): void {
@@ -587,7 +594,7 @@ export class Room {
     else this.resetTimer(events);
     this.broadcastResult(events);
 
-    if (this.state.phase === 'playing') this.scheduleComputerActionIfNeeded();
+    if (this.state.phase === 'playing') this.scheduleComputerActionIfNeeded(events);
   }
 
   handlePassSkill(playerId: string): void {
@@ -608,17 +615,29 @@ export class Room {
     else this.resetTimer(events);
     this.broadcastResult(events);
 
-    if (this.state.phase === 'playing') this.scheduleComputerActionIfNeeded();
+    if (this.state.phase === 'playing') this.scheduleComputerActionIfNeeded(events);
   }
 
-  /** 싱글 모드 — 컴퓨터(B팀) 차례(장소 클릭 또는 스킬 선택)가 되면 잠시 "생각하는" 척한 뒤 무작위로 진행한다. */
-  private scheduleComputerActionIfNeeded(): void {
+  /**
+   * 싱글 모드 — 컴퓨터(B팀) 차례(장소 클릭 또는 스킬 선택)가 되면 잠시 "생각하는" 척한 뒤
+   * 무작위로 진행한다. lastActionEvents는 방금 브로드캐스트한 액션의 이벤트로, 행동 선택
+   * 차례일 때 그 연출이 화면에서 끝날 때까지 기다리는 데 쓴다(CPU_SKILL_THINK_* 참고).
+   */
+  private scheduleComputerActionIfNeeded(lastActionEvents?: GameEvent[]): void {
     if (!this.vsComputer || !this.state || this.state.phase !== 'playing') return;
     const waitingTeam = this.state.pendingChoice ?? this.state.activeTeam;
     if (waitingTeam !== 'B') return;
     if (this.computerTimer !== null) return;
 
-    const delay = CPU_THINK_MIN_MS + Math.floor(Math.random() * (CPU_THINK_MAX_MS - CPU_THINK_MIN_MS));
+    // 행동 선택은 자기가 방금 뽑은 카드의 연출이 끝난 뒤부터 시간을 센다. 장소 선택은
+    // 직전 액션이 이미 상대 턴에 끝나 있으므로 기존대로 처리 시각부터 그대로 센다.
+    const isSkillChoice = this.state.pendingChoice === 'B';
+    const [minMs, maxMs] = isSkillChoice
+      ? [CPU_SKILL_THINK_MIN_MS, CPU_SKILL_THINK_MAX_MS]
+      : [CPU_THINK_MIN_MS, CPU_THINK_MAX_MS];
+    const graceMs = isSkillChoice && lastActionEvents ? settleGraceMs(lastActionEvents) : 0;
+
+    const delay = graceMs + minMs + Math.floor(Math.random() * (maxMs - minMs));
     this.computerTimer = setTimeout(() => {
       this.computerTimer = null;
       this.performComputerAction();
@@ -647,7 +666,7 @@ export class Room {
     else this.resetTimer(result.events);
     this.broadcastResult(result.events);
 
-    if (this.state.phase === 'playing') this.scheduleComputerActionIfNeeded();
+    if (this.state.phase === 'playing') this.scheduleComputerActionIfNeeded(result.events);
   }
 
   handleTimeout(): void {
@@ -673,7 +692,7 @@ export class Room {
     const clientState = serializeState(this.state, this.turnDeadline, this.turnTotalMs, this.finalTeamNames(), this.teamPlayerIds);
     this.broadcast({ type: 'actionResult', events: clientEvents, state: clientState });
 
-    if (this.state.phase === 'playing') this.scheduleComputerActionIfNeeded();
+    if (this.state.phase === 'playing') this.scheduleComputerActionIfNeeded(events);
   }
 
   private broadcastResult(events: ReturnType<typeof processPlayerAction>['events']): void {
