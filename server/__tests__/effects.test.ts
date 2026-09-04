@@ -2,8 +2,18 @@ import { initGame, advanceTurn } from '../engine/turnManager';
 import { drawCard } from '../engine/drawCard';
 import { processPlayerAction, processSkillChoice, processPass, processTimeout } from '../engine/gameEngine';
 import { applySkillChoice, applyPass, levelOf } from '../engine/skills';
-import type { Animal, CardNum, StackedCard } from 'shared';
-import { MAX_TURN, SHEEP_SAFETY_CAP, THRESHOLDS, FESTIVAL_TURN, DEFAULT_TARGET_SCORE } from 'shared';
+import type { Animal, CardNum, GameState, StackedCard } from 'shared';
+import {
+  ANIMALS,
+  MAX_TURN,
+  SHEEP_SAFETY_CAP,
+  THRESHOLDS,
+  FESTIVAL_TURN,
+  DEFAULT_TARGET_SCORE,
+  OPENING_SHARED_CARD_COUNT,
+  OPENING_SHARED_CARD_NUM_MAX,
+  OPENING_SHARED_CARD_NUM_MIN,
+} from 'shared';
 
 // 이 테스트들은 initGame을 기본 설정으로 돌리므로 시작·승리 체력을 기본 목표 점수에서
 // 유도한다 — shared의 INITIAL_HP/WIN_HP 상수는 "targetScore=10일 때의 참고값"이라
@@ -21,10 +31,19 @@ function stackedCard(animal: Animal, num: CardNum): StackedCard {
   return { id: ++cardIdSeed, animal, num, collectedBy: null };
 }
 
+/**
+ * 스택을 한 장 단위까지 통제해야 하는 테스트용 — 시작 공유 카드 2장을 걷어내고
+ * 완전히 빈 보드로 만든다(공유 카드 자체의 규칙은 아래 전용 describe에서 검증한다).
+ */
+function clearStacks(state: GameState): GameState {
+  state.stacks = { sheep: [], rabbit: [], mermaid: [], tiger: [] };
+  return state;
+}
+
 // ─── 홀수 잔류 / 짝수 즉시 수집 (경험치만 오른다 — 체력은 불변) ────────────────────
 describe('홀수 잔류', () => {
   it('3장 스택 시 아무것도 수집하지 않음', () => {
-    const state = initGame(['A1'], ['B1'], rng0);
+    const state = clearStacks(initGame(['A1'], ['B1'], rng0));
     state.stacks.rabbit.push(stackedCard('rabbit', 7), stackedCard('rabbit', 6));
     // house = [rabbit, sheep] — rng0는 항상 0번째(rabbit)를 뽑는다
     drawCard(state, 'house', rng0);
@@ -34,7 +53,7 @@ describe('홀수 잔류', () => {
   });
 
   it('짝수(2장) 스택 시 즉시 수집 — 경험치만 오르고 체력은 그대로다', () => {
-    const state = initGame(['A1'], ['B1'], rng0);
+    const state = clearStacks(initGame(['A1'], ['B1'], rng0));
     state.stacks.tiger.push(stackedCard('tiger', 6));
     // dock = [mermaid, tiger] — rngLast는 항상 마지막(tiger)을 뽑는다
     drawCard(state, 'dock', rngLast);
@@ -46,7 +65,7 @@ describe('홀수 잔류', () => {
   });
 
   it('축제 중이어도 페어 경험치는 배가되지 않는다(카드 숫자 합 그대로)', () => {
-    const state = initGame(['A1'], ['B1'], rng0);
+    const state = clearStacks(initGame(['A1'], ['B1'], rng0));
     state.festival = true;
     state.stacks.tiger.push(stackedCard('tiger', 6));
     const events = drawCard(state, 'dock', rngLast); // 6 + 10 = 16, 배가 없음
@@ -54,6 +73,57 @@ describe('홀수 잔류', () => {
     expect(state.teams['A'].exp.tiger).toBe(16);
     const collectEv = events.find(e => e.type === 'collect');
     expect(collectEv).toMatchObject({ type: 'collect', animal: 'tiger', exp: 16 });
+  });
+});
+
+// ─── 시작 공유 카드 (선 플레이어의 불합리 타파) ─────────────────────────────────
+describe('시작 공유 카드', () => {
+  const openingCards = (state: GameState) =>
+    ANIMALS.flatMap(a => state.stacks[a]);
+
+  it.each([
+    ['rng0', rng0],
+    ['rngLast', rngLast],
+  ])('%s — 서로 다른 동물 2장이, 아무도 획득하지 않은 상태로 깔려 있다', (_label, rng) => {
+    const state = initGame(['A1'], ['B1'], rng);
+    const cards = openingCards(state);
+
+    expect(cards).toHaveLength(OPENING_SHARED_CARD_COUNT);
+    expect(new Set(cards.map(c => c.animal)).size).toBe(OPENING_SHARED_CARD_COUNT);
+    expect(cards.every(c => c.collectedBy === null)).toBe(true);
+  });
+
+  it('카드 숫자는 7~13 사이다', () => {
+    // 무작위성이 개입하므로 여러 판을 돌려 범위를 확인한다.
+    for (let i = 0; i < 200; i++) {
+      openingCards(initGame(['A1'], ['B1'])).forEach(c => {
+        expect(c.num).toBeGreaterThanOrEqual(OPENING_SHARED_CARD_NUM_MIN);
+        expect(c.num).toBeLessThanOrEqual(OPENING_SHARED_CARD_NUM_MAX);
+      });
+    }
+  });
+
+  it('시작하자마자 정산되는 일은 없다 — 양 팀 경험치는 모두 0에서 출발한다', () => {
+    for (let i = 0; i < 200; i++) {
+      const state = initGame(['A1'], ['B1']);
+      ANIMALS.forEach(a => {
+        expect(state.teams.A.exp[a]).toBe(0);
+        expect(state.teams.B.exp[a]).toBe(0);
+        expect(state.stacks[a].length).toBeLessThanOrEqual(1); // 같은 동물 중복 없음
+      });
+    }
+  });
+
+  it('선 플레이어가 첫 클릭에서 공유 카드와 짝을 맞추면 그 자리에서 획득한다', () => {
+    const state = initGame(['A1'], ['B1'], rng0);
+    // rng0에서 공유 카드는 sheep·rabbit 각 1장(숫자 7)이고, house의 0번째 동물은 rabbit이다.
+    expect(state.stacks.rabbit).toHaveLength(1);
+
+    const { state: s1, events } = processPlayerAction(state, 'house', rng0);
+    const collectEv = events.find(e => e.type === 'collect');
+    expect(collectEv).toMatchObject({ type: 'collect', animal: 'rabbit', team: 'A' });
+    // 공유 카드 7 + house(2종 장소, rng0) 5 = 12
+    expect(s1.teams.A.exp.rabbit).toBe(12);
   });
 });
 

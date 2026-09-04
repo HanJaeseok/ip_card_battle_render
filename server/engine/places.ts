@@ -1,4 +1,11 @@
-import { PLACES, PLACE_ANIMALS } from 'shared';
+import {
+  ANIMALS,
+  OPENING_SHARED_CARD_COUNT,
+  OPENING_SHARED_CARD_NUM_MAX,
+  OPENING_SHARED_CARD_NUM_MIN,
+  PLACES,
+  PLACE_ANIMALS,
+} from 'shared';
 import type { Animal, CardNum, Place, StackedCard } from 'shared';
 
 export type RNG = () => number;
@@ -31,4 +38,24 @@ export function drawCardAt(place: Place, rng: RNG = Math.random): StackedCard {
   const num = (placeAnimalCount >= 3 ? Math.floor(rng() * 6) + 10 : Math.floor(rng() * 6) + 5) as CardNum;
 
   return { id: ++cardIdCounter, animal, num, collectedBy: null };
+}
+
+/**
+ * 게임 시작 시 중앙에 미리 깔아두는 "공유 카드"를 뽑는다 — 선 플레이어가 빈 보드에서
+ * 시작해 짝을 만들 수 없던 불합리를 없애기 위한 장치다(shared/constants.ts 참고).
+ *
+ * 동물은 중복 없이 뽑는다 — 같은 동물 두 장이면 시작하자마자 짝이 되어 선 플레이어가
+ * 첫 클릭도 하기 전에 정산되어버린다. 숫자는 장소 뽑기와 무관하게 7~13 사이에서 고른다.
+ */
+export function dealOpeningSharedCards(rng: RNG = Math.random): StackedCard[] {
+  const pool: Animal[] = [...ANIMALS];
+  const numSpan = OPENING_SHARED_CARD_NUM_MAX - OPENING_SHARED_CARD_NUM_MIN + 1;
+
+  const cards: StackedCard[] = [];
+  for (let i = 0; i < OPENING_SHARED_CARD_COUNT && pool.length > 0; i++) {
+    const [animal] = pool.splice(Math.floor(rng() * pool.length), 1);
+    const num = (Math.floor(rng() * numSpan) + OPENING_SHARED_CARD_NUM_MIN) as CardNum;
+    cards.push({ id: ++cardIdCounter, animal, num, collectedBy: null });
+  }
+  return cards;
 }

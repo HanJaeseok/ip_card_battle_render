@@ -28,7 +28,7 @@ export const DEFAULT_FESTIVAL_DRAW_INCREASE_INTERVAL = 2;
 export const DEFAULT_FIRST_TEAM: 'A' | 'B' | 'random' = 'A';
 // targetScore(목표 점수) — 시작 체력이자 승리에 필요한 격차(시작 체력 = targetScore,
 // winHp = targetScore × 2). 기본값 10이면 체력 10에서 시작해 20 이상이면 즉시 승리.
-export const DEFAULT_TARGET_SCORE = 6;
+export const DEFAULT_TARGET_SCORE = 7;
 export const DEFAULT_FESTIVAL_TURN = FESTIVAL_TURN;
 export const DEFAULT_DRAW_TIME_SEC = 30;
 export const DEFAULT_ACTION_TIME_SEC = 15;
@@ -122,6 +122,18 @@ export function festivalDrawInfoAt(turn: number, settings: GameSettings): Festiv
 
 // 실용신양 스킬로 예약된 추가 뽑기 1회 소모당 상한 (무한루프/과도한 뽑기 방지)
 export const SHEEP_SAFETY_CAP = 40;
+
+// ─── 시작 공유 카드 ───────────────────────────────────────────────────────────
+// 빈 보드에서 시작하면 선 플레이어는 무엇을 뽑아도 짝을 만들 수 없고(스택이 비어 있으니),
+// 그 짝은 바로 다음 차례인 상대가 가져간다 — 선 플레이어에게 구조적으로 불리한 구조다.
+// 이를 없애기 위해 게임 시작 시 어느 팀 것도 아닌 "공유 카드"를 중앙에 미리 깔아둔다.
+// 두 장은 반드시 서로 다른 동물이라(같은 동물이면 그 자리에서 짝이 되어버린다) 시작
+// 시점에는 어떤 스택도 정산되지 않는다.
+export const OPENING_SHARED_CARD_COUNT = 2;
+// 공유 카드의 숫자 범위 — 장소별 뽑기(5~10 / 10~15)의 한가운데를 걸쳐, 어느 쪽으로도
+// 지나치게 유리하거나 불리하지 않은 값만 나오게 한다.
+export const OPENING_SHARED_CARD_NUM_MIN = 7;
+export const OPENING_SHARED_CARD_NUM_MAX = 13;
 
 export const ANIMALS = ['sheep', 'rabbit', 'mermaid', 'tiger'] as const;
 

@@ -1,6 +1,6 @@
 import { MAX_TURN, LOSE_HP, clampSettings, festivalDrawInfoAt } from 'shared';
 import type { GameEvent, GameSettings, GameState, Team } from 'shared';
-import { initStacks } from './places';
+import { dealOpeningSharedCards, initStacks } from './places';
 import type { RNG } from './places';
 
 /**
@@ -167,12 +167,19 @@ export function initGame(
     },
   });
 
+  // 선 플레이어의 불합리를 없애기 위한 시작 공유 카드 — 서로 다른 동물 두 장이 중앙에
+  // 깔린 채로 게임이 시작된다(engine/places.ts의 dealOpeningSharedCards 참고).
+  const stacks = initStacks();
+  for (const card of dealOpeningSharedCards(rng)) {
+    stacks[card.animal].push(card);
+  }
+
   return {
     phase: 'playing',
     turn: 1,
     activeTeam: startingTeam,
     activePlayerIndex: 0,
-    stacks: initStacks(),
+    stacks,
     lastPlace: null,
     festival: false,
     pendingChoice: null,
