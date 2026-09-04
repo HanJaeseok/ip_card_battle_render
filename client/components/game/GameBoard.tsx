@@ -121,7 +121,6 @@ export function GameBoard({
           shakingPile={shakingPile}
           newCardId={newCardId}
           isMyTurn={isMyTurnDisplayed}
-          myTeam={myTeam}
         />
       </div>
 
