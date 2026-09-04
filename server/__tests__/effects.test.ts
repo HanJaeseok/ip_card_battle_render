@@ -3,7 +3,13 @@ import { drawCard } from '../engine/drawCard';
 import { processPlayerAction, processSkillChoice, processPass, processTimeout } from '../engine/gameEngine';
 import { applySkillChoice, applyPass, levelOf } from '../engine/skills';
 import type { Animal, CardNum, StackedCard } from 'shared';
-import { MAX_TURN, SHEEP_SAFETY_CAP, THRESHOLDS, FESTIVAL_TURN, INITIAL_HP, WIN_HP } from 'shared';
+import { MAX_TURN, SHEEP_SAFETY_CAP, THRESHOLDS, FESTIVAL_TURN, DEFAULT_TARGET_SCORE } from 'shared';
+
+// 이 테스트들은 initGame을 기본 설정으로 돌리므로 시작·승리 체력을 기본 목표 점수에서
+// 유도한다 — shared의 INITIAL_HP/WIN_HP 상수는 "targetScore=10일 때의 참고값"이라
+// 기본값을 바꾸면 어긋난다(시작 체력 = targetScore, 승리 체력 = targetScore × 2).
+const INITIAL_HP = DEFAULT_TARGET_SCORE;
+const WIN_HP = DEFAULT_TARGET_SCORE * 2;
 
 // 결정론적 RNG (항상 0 반환 — Math.floor(rng()*n)은 항상 0번째 원소를 고른다)
 const rng0 = () => 0;

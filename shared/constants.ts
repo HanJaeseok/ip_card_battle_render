@@ -14,7 +14,7 @@ export const LOSE_HP = 0;
 
 // 축제 시작 턴(기본값) — 방장이 방 생성 시 바꿀 수 있다(GameSettings.festivalTurn) —
 // "축제가 시작되는 첫 턴"이라 turn >= festivalTurn으로 판정한다.
-export const FESTIVAL_TURN = 8;
+export const FESTIVAL_TURN = 6;
 
 // 축제가 열리면 실용신양과 동일한 방식(무작위 장소에서 카드 뽑기)의 "도토리 뽑기"가
 // festivalDrawCount(n)회 발동한다. 이후 festivalDrawIncreaseInterval(k)턴마다
@@ -28,11 +28,11 @@ export const DEFAULT_FESTIVAL_DRAW_INCREASE_INTERVAL = 2;
 export const DEFAULT_FIRST_TEAM: 'A' | 'B' | 'random' = 'A';
 // targetScore(목표 점수) — 시작 체력이자 승리에 필요한 격차(시작 체력 = targetScore,
 // winHp = targetScore × 2). 기본값 10이면 체력 10에서 시작해 20 이상이면 즉시 승리.
-export const DEFAULT_TARGET_SCORE = 10;
+export const DEFAULT_TARGET_SCORE = 6;
 export const DEFAULT_FESTIVAL_TURN = FESTIVAL_TURN;
 export const DEFAULT_DRAW_TIME_SEC = 30;
 export const DEFAULT_ACTION_TIME_SEC = 15;
-export const DEFAULT_NO_ACTION_TIME_SEC = 5;
+export const DEFAULT_NO_ACTION_TIME_SEC = 3;
 
 // 방 생성 화면에서 입력값을 이 범위로 잘라낸다(서버도 방어적으로 다시 clamp한다).
 export const SETTINGS_LIMITS = {
@@ -84,6 +84,41 @@ export function clampSettings(input: Partial<typeof DEFAULT_SETTINGS> | undefine
 
 export const MAX_TURN = 20;
 export const TURN_TIME_SEC = 30;
+
+/** festivalDrawInfoAt의 결과 — "이번 턴 몇 회, 그리고 언제 몇 회로 올라가는지". */
+export interface FestivalDrawInfo {
+  /** 그 턴에 예약되는 도토리 뽑기 횟수(n × 단계). 축제 시작 전이면 0. */
+  count: number;
+  /** 다음 강화까지 남은 턴 수. MAX_TURN 안에서 강화될 일이 없으면 null. */
+  turnsToNextStage: number | null;
+  /** 강화된 뒤의 뽑기 횟수. turnsToNextStage가 null이면 같이 null. */
+  nextCount: number | null;
+}
+
+/**
+ * 어떤 턴에 예약되는 도토리 축제 랜덤 뽑기 정보 — 서버의 예약 계산(engine/turnManager.ts)과
+ * 클라이언트 헤더 안내가 반드시 같은 식을 쓰도록 여기 한 곳에 모아둔다.
+ *
+ * 단계는 festivalTurn부터 k(festivalDrawIncreaseInterval)턴마다 한 칸씩 올라가고,
+ * 그 턴의 횟수는 n(festivalDrawCount) × 단계다. k가 크거나 이미 막판이라 다음 단계 턴이
+ * MAX_TURN을 넘으면 "강화될 일이 없다"는 뜻이므로 예고값을 null로 돌려준다.
+ */
+export function festivalDrawInfoAt(turn: number, settings: GameSettings): FestivalDrawInfo {
+  const { festivalDrawCount, festivalDrawIncreaseInterval } = settings;
+  // MAX_TURN을 넘는 festivalTurn은 advanceTurn과 동일하게 MAX_TURN 그 자체로 취급한다
+  // (그렇지 않으면 축제가 열렸는데도 매번 0회로 잘못 계산될 수 있다).
+  const festivalTurn = Math.min(settings.festivalTurn, MAX_TURN);
+  if (turn < festivalTurn) return { count: 0, turnsToNextStage: null, nextCount: null };
+
+  const stage = Math.floor((turn - festivalTurn) / festivalDrawIncreaseInterval) + 1;
+  const nextStageTurn = festivalTurn + stage * festivalDrawIncreaseInterval;
+  const reachable = nextStageTurn <= MAX_TURN;
+  return {
+    count: festivalDrawCount * stage,
+    turnsToNextStage: reachable ? nextStageTurn - turn : null,
+    nextCount: reachable ? festivalDrawCount * (stage + 1) : null,
+  };
+}
 
 // 실용신양 스킬로 예약된 추가 뽑기 1회 소모당 상한 (무한루프/과도한 뽑기 방지)
 export const SHEEP_SAFETY_CAP = 40;

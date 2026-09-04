@@ -1,7 +1,7 @@
 import { initGame } from '../engine/turnManager';
 import { processPlayerAction, processSkillChoice, processPass } from '../engine/gameEngine';
 import { randomEligibleSkill, eligibleAnimals } from '../engine/skills';
-import { PLACES, MAX_TURN, WIN_HP, LOSE_HP } from 'shared';
+import { PLACES, MAX_TURN, DEFAULT_TARGET_SCORE, LOSE_HP } from 'shared';
 import type { GameState, Animal, Team } from 'shared';
 
 // ─── 시드 가능한 선형 합동 RNG ────────────────────────────────────────────────
@@ -12,6 +12,10 @@ function makeLCG(seed: number): () => number {
     return s / 0x100000000;
   };
 }
+
+// 이 시뮬레이션은 initGame을 기본 설정으로 돌리므로 승리 체력도 기본 목표 점수에서 유도한다
+// — shared의 WIN_HP 상수는 "targetScore=10일 때의 참고값"이라 기본값을 바꾸면 어긋난다.
+const WIN_HP = DEFAULT_TARGET_SCORE * 2;
 
 type SkillPicker = (state: GameState, team: Team, rng: () => number) => Animal | null;
 

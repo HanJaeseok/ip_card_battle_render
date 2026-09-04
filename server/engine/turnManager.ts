@@ -1,4 +1,4 @@
-import { MAX_TURN, LOSE_HP, clampSettings } from 'shared';
+import { MAX_TURN, LOSE_HP, clampSettings, festivalDrawInfoAt } from 'shared';
 import type { GameEvent, GameSettings, GameState, Team } from 'shared';
 import { initStacks } from './places';
 import type { RNG } from './places';
@@ -57,20 +57,14 @@ export function finishTurn(state: GameState): GameEvent[] {
  * 도토리 축제 랜덤 뽑기 — settings.festivalTurn에 도달한 턴부터는 "그 턴부터 매 턴 계속"
  * n회씩 발동한다(한 번 터지고 끝나는 일회성 보너스가 아니다). 그리고 매 턴 같은 n회가
  * 아니라, settings.festivalDrawIncreaseInterval(k)턴이 지날 때마다 n×1 → n×2 → n×3 ...
- * 으로 단계가 한 번씩 올라가고, 그 단계의 n×stage가 이후 매 턴 유지된다(디폴트
- * k=999는 사실상 MAX_TURN 안에서 절대 2단계로 못 올라간다는 뜻일 뿐, n×1회가 festivalTurn
- * 이후 매 턴 계속 발동하는 것 자체는 기본 설정에서도 그대로 적용된다).
+ * 으로 단계가 한 번씩 올라가고, 그 단계의 n×stage가 이후 매 턴 유지된다(k를 999에 가깝게
+ * 크게 잡으면 MAX_TURN 안에서 절대 2단계로 못 올라간다는 뜻일 뿐, n×1회가 festivalTurn
+ * 이후 매 턴 계속 발동하는 것 자체는 그대로 적용된다).
+ *
+ * 실제 계산식은 shared/constants.ts의 festivalDrawInfoAt에 있다 — 클라이언트 헤더가
+ * "지금 몇 회, 몇 턴 후 몇 회로 강화되는지"를 서버 예약과 똑같은 식으로 안내해야 하므로
+ * 양쪽이 함께 쓰는 shared에 두었다.
  */
-function festivalDrawCountAt(turn: number, settings: GameSettings): number {
-  const { festivalDrawCount, festivalDrawIncreaseInterval } = settings;
-  // advanceTurn이 festival 진입 여부를 판정할 때와 같은 방식으로, MAX_TURN을 넘는
-  // festivalTurn은 암묵적으로 MAX_TURN 그 자체로 취급한다(그렇지 않으면 state.festival이
-  // true인데도 여기 원본 festivalTurn과 비교해 매번 0회로 잘못 계산될 수 있다).
-  const festivalTurn = Math.min(settings.festivalTurn, MAX_TURN);
-  if (turn < festivalTurn) return 0;
-  const stage = Math.floor((turn - festivalTurn) / festivalDrawIncreaseInterval) + 1;
-  return festivalDrawCount * stage;
-}
 
 /**
  * 턴 종료 처리 — 행동 선택까지 모두 끝난 뒤에만(또는 checkKnockout이 통과한 뒤에만) 호출된다.
@@ -115,7 +109,7 @@ export function advanceTurn(state: GameState): GameEvent[] {
   // (server/engine/drawCard.ts) 실행된다. 축제 시작 이후로는 A/B 어느 팀 차례든 매 턴 계속
   // 예약된다 — "라운드당 한 번"이 아니라 "누구든 자기 턴이 오면 무조건" 받는 보너스다.
   if (state.festival) {
-    const drawCount = festivalDrawCountAt(state.turn, state.settings);
+    const drawCount = festivalDrawInfoAt(state.turn, state.settings).count;
     if (drawCount > 0) {
       state.teams[nextTeam].pendingFestivalDraws += drawCount;
     }

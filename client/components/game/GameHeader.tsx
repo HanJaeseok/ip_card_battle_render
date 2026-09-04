@@ -1,5 +1,5 @@
 import type { ClientGameState, Team } from 'shared';
-import { MAX_TURN } from 'shared';
+import { MAX_TURN, festivalDrawInfoAt } from 'shared';
 
 function StepPill({ label, active }: { label: string; active: boolean }) {
   return (
@@ -52,8 +52,10 @@ export function GameHeader({
   // 아니다 — 그 앞 단계(장소 선택)가 마무리되는 그림을 계속 보여준다.
   const isDrawPhase = gameState.pendingChoice === null;
   const isChoicePhase = !isDrawPhase && !isSettling;
-  // 지금 장소를 클릭할 팀에게 예약된 도토리 축제 뽑기 수 — "이번에 클릭하면 몇 장이 더 뽑히는지"를 보여준다.
-  const pendingFestivalDraws = gameState.teams[gameState.activeTeam].pendingFestivalDraws;
+  // 이번 턴의 도토리 축제 보너스 안내 — 팀의 pendingFestivalDraws를 그대로 읽으면 장소를
+  // 클릭하는 순간 소모돼 0이 되므로(=행동 선택 단계에서 문구가 짧아진다), 예약과 똑같은 식
+  // (festivalDrawInfoAt)으로 "이번 턴에 걸린 횟수"를 다시 계산해 두 단계에서 같은 문구를 쓴다.
+  const festivalInfo = festivalDrawInfoAt(gameState.turn, gameState.settings);
 
   return (
     <header className="relative bg-jungle-800 text-white px-5 py-2.5 flex items-center shadow-md shrink-0 min-h-[3.25rem]">
@@ -74,8 +76,10 @@ export function GameHeader({
         </div>
         {gameState.festival && (
           <span className="festival-header-badge text-sm font-bold whitespace-nowrap">
-            🌰 도토리 축제 진행 중
-            {pendingFestivalDraws > 0 && ` (랜덤 뽑기 +${pendingFestivalDraws}회 추가!)`}
+            🌰 도토리 축제 진행 중! 보너스 랜덤 뽑기 +{festivalInfo.count}회!
+            {/* 강화 주기가 남은 턴보다 커서 다시 오를 일이 없으면 예고 자체를 감춘다. */}
+            {festivalInfo.turnsToNextStage !== null &&
+              ` (${festivalInfo.turnsToNextStage}턴 후 +${festivalInfo.nextCount}회)`}
           </span>
         )}
       </div>
